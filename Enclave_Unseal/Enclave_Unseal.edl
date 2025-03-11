@@ -42,6 +42,14 @@ enclave {
 		public sgx_status_t unseal_data([in, size=data_size] const uint8_t *sealed_blob, size_t data_size,
                                         [out, size=mac_data_size] uint8_t *p_mac_text, size_t mac_data_size,
                                         [out, size=decrypt_data_size] uint8_t *p_decrypt_data, size_t decrypt_data_size);
+        public sgx_status_t decrypt_by_rsa_prikey([in,size=384] unsigned char* p_p,
+                                                  [in,size=384] unsigned char* p_q,
+                                                  [in,size=384] unsigned char* p_dmp1,
+                                                  [in,size=384] unsigned char* p_dmq1,
+                                                  [in,size=384] unsigned char* p_iqmp,
+                                                  [in, size=data_size] uint8_t* p_data, size_t data_size,
+                                                  [out] uint8_t* p_decrypt_data,
+                                                  [out] size_t* decrypt_data_size);
     };
 
     untrusted {
