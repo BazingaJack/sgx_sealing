@@ -1,34 +1,3 @@
-#
-# Copyright (C) 2011-2021 Intel Corporation. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-#   * Redistributions of source code must retain the above copyright
-#     notice, this list of conditions and the following disclaimer.
-#   * Redistributions in binary form must reproduce the above copyright
-#     notice, this list of conditions and the following disclaimer in
-#     the documentation and/or other materials provided with the
-#     distribution.
-#   * Neither the name of Intel Corporation nor the names of its
-#     contributors may be used to endorse or promote products derived
-#     from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-#
-
 ####### SGX SDK Settings ########
 
 SGX_SDK ?= /opt/intel/sgxsdk
@@ -102,11 +71,9 @@ App_Compile_CXXFlags := -std=c++0x $(App_Compile_CFlags)
 App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
 
 Gen_Untrusted_Source_Seal := App/Enclave_Seal_u.c
-Gen_Untrusted_Source_Unseal := App/Enclave_Unseal_u.c
 Gen_Untrusted_Object_Seal := App/Enclave_Seal_u.o
-Gen_Untrusted_Object_Unseal := App/Enclave_Unseal_u.o
 
-App_Objects := $(Gen_Untrusted_Object_Seal) $(Gen_Untrusted_Object_Unseal) $(App_Cpp_Files:.cpp=.o)
+App_Objects := $(Gen_Untrusted_Object_Seal) $(App_Cpp_Files:.cpp=.o)
 
 App_Name := app
 
@@ -162,19 +129,6 @@ Enclave_Seal_Config_File := Enclave_Seal/Enclave_Seal.config.xml
 Enclave_Seal_Test_Key := Enclave_Seal/Enclave_private_test.pem
 Enclave_Seal_Link_Flags := $(Enclave_Link_Flags) -Wl,--version-script=Enclave_Seal/Enclave_Seal.lds
 
-# Enclave_Unseal
-Enclave_Unseal_Cpp_Files := $(wildcard Enclave_Unseal/*.cpp)
-Enclave_Unseal_Cpp_Objects := $(Enclave_Unseal_Cpp_Files:.cpp=.o)
-Gen_Trusted_Source_Unseal := Enclave_Unseal/Enclave_Unseal_t.c
-Gen_Trusted_Object_Unseal := Enclave_Unseal/Enclave_Unseal_t.o
-Enclave_Unseal_Objects := $(Gen_Trusted_Object_Unseal) $(Enclave_Unseal_Cpp_Files:.cpp=.o)
-
-Enclave_Unseal_Name := libenclave_unseal.so
-Signed_Enclave_Unseal_Name := libenclave_unseal.signed.so
-Enclave_Unseal_Config_File := Enclave_Unseal/Enclave_Unseal.config.xml
-Enclave_Unseal_Link_Flags := $(Enclave_Link_Flags) -Wl,--version-script=Enclave_Unseal/Enclave_Unseal.lds
-
-
 ifeq ($(SGX_MODE), HW)
 ifeq ($(SGX_DEBUG), 1)
     Build_Mode = HW_DEBUG
@@ -198,16 +152,15 @@ all: .config_$(Build_Mode)_$(SGX_ARCH)
 	@$(MAKE) target
 
 ifeq ($(Build_Mode), HW_RELEASE)
-target: $(App_Name) $(Enclave_Seal_Name) $(Enclave_Unseal_Name)
+target: $(App_Name) $(Enclave_Seal_Name)
 	@echo "The project has been built in release hardware mode."
-	echo "Please sign the enclaves ($(Enclave_Seal_Name), $(Enclave_Unseal_Name)) first with your signing key before you run the $(App_Name) to launch and access the enclaves."
+	echo "Please sign the enclaves ($(Enclave_Seal_Name)) first with your signing key before you run the $(App_Name) to launch and access the enclaves."
 	@echo "To sign the enclaves use the command:"
 	@echo "   $(SGX_ENCLAVE_SIGNER) sign -key <your key> -enclave $(Enclave_Seal_Name) -out <$(Signed_Enclave_Seal_Name)> -config $(Enclave_Seal_Config_File)"
-	@echo "   $(SGX_ENCLAVE_SIGNER) sign -key <your key> -enclave $(Enclave_Unseal_Name) -out <$(Signed_Enclave_Unseal_Name)> -config $(Enclave_Unseal_Config_File)"
 	@echo "You can also sign the enclave using an external signing tool."
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
 else
-target: $(App_Name) $(Signed_Enclave_Seal_Name) $(Signed_Enclave_Unseal_Name)
+target: $(App_Name) $(Signed_Enclave_Seal_Name)
 ifeq ($(Build_Mode), HW_DEBUG)
 	@echo "The project has been built in debug hardware mode."
 else ifeq ($(Build_Mode), SIM_DEBUG)
@@ -222,8 +175,8 @@ endif
 endif
 
 .config_$(Build_Mode)_$(SGX_ARCH):
-	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Enclave_Unseal_Name) $(Signed_Enclave_Seal_Name) $(Signed_Enclave_Unseal_Name)
-	@rm -f $(Enclave_Seal_Objects) $(Enclave_Unseal_Objects) App/Enclave_Seal_u.* App/Enclave_Unseal_u.* Enclave_Seal/Enclave_Seal_t.* Enclave_Unseal/Enclave_Unseal_t.*
+	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
+	@rm -f $(Enclave_Seal_Objects) App/Enclave_Seal_u.* Enclave_Seal/Enclave_Seal_t.*
 	@touch .config_$(Build_Mode)_$(SGX_ARCH)
 
 ######## App Objects ########
@@ -232,15 +185,7 @@ $(Gen_Untrusted_Source_Seal): $(SGX_EDGER8R) Enclave_Seal/Enclave_Seal.edl
 	@cd App && $(SGX_EDGER8R) --untrusted ../Enclave_Seal/Enclave_Seal.edl --search-path $(SGX_SDK)/include
 	@echo "GEN  =>  $@"
 
-$(Gen_Untrusted_Source_Unseal): $(SGX_EDGER8R) Enclave_Unseal/Enclave_Unseal.edl
-	@cd App && $(SGX_EDGER8R) --untrusted ../Enclave_Unseal/Enclave_Unseal.edl --search-path $(SGX_SDK)/include
-	@echo "GEN  =>  $@"
-
 $(Gen_Untrusted_Object_Seal): $(Gen_Untrusted_Source_Seal)
-	@$(CC) $(SGX_COMMON_CFLAGS) $(App_Compile_CFlags) -c $< -o $@
-	@echo "CC   <=  $<"
-
-$(Gen_Untrusted_Object_Unseal): $(Gen_Untrusted_Source_Unseal)
 	@$(CC) $(SGX_COMMON_CFLAGS) $(App_Compile_CFlags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -248,7 +193,7 @@ App/%.o: App/%.cpp
 	@$(CXX) $(SGX_COMMON_CXXFLAGS) $(App_Compile_CXXFlags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
-$(App_Objects): $(Gen_Untrusted_Source_Seal) $(Gen_Untrusted_Source_Unseal)
+$(App_Objects): $(Gen_Untrusted_Source_Seal)
 
 $(App_Name): $(App_Objects)
 	@$(CXX) $(SGX_COMMON_CXXFLAGS) $^ -o $@ $(App_Link_Flags)
@@ -283,35 +228,10 @@ endif
 	@$(SGX_ENCLAVE_SIGNER) sign -key $(Enclave_Seal_Test_Key) -enclave $(Enclave_Seal_Name) -out $@ -config $(Enclave_Seal_Config_File)
 	@echo "SIGN =>  $@"
 
-
-######## Enclave Unseal Objects ########
-
-$(Gen_Trusted_Source_Unseal): $(SGX_EDGER8R) Enclave_Unseal/Enclave_Unseal.edl
-	@cd Enclave_Unseal && $(SGX_EDGER8R) --trusted Enclave_Unseal.edl --search-path $(SGX_SDK)/include
-	@echo "GEN  =>  $@"
-$(Gen_Trusted_Object_Unseal): $(Gen_Trusted_Source_Unseal)
-	@$(CC) $(SGX_COMMON_CFLAGS) $(Enclave_Compile_CFlags) -c $< -o $@
-	@echo "CC   <=  $<"
-
-Enclave_Unseal/%.o: Enclave_Unseal/%.cpp
-	@$(CXX) $(SGX_COMMON_CXXFLAGS) $(Enclave_Compile_CXXFlags) -c $< -o $@
-	@echo "CXX  <=  $<"
-
-$(Enclave_Unseal_Objects): $(Gen_Trusted_Source_Unseal)
-
-$(Enclave_Unseal_Name): $(Enclave_Unseal_Objects)
-	@$(CXX) $(SGX_COMMON_CXXFLAGS) $(Enclave_Unseal_Objects) -o $@ $(Enclave_Unseal_Link_Flags)
-	@echo "LINK =>  $@"
-
-$(Signed_Enclave_Unseal_Name): $(Enclave_Unseal_Name)
-	@$(SGX_ENCLAVE_SIGNER) sign -key $(Enclave_Seal_Test_Key) -enclave $(Enclave_Unseal_Name) -out $@ -config $(Enclave_Unseal_Config_File)
-	@echo "SIGN =>  $@"
-
-
 ######### clean up ########
 .PHONY: clean
 
 
 clean:
-	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Enclave_Unseal_Name) $(Signed_Enclave_Seal_Name) $(Signed_Enclave_Unseal_Name)
-	@rm -f $(Enclave_Seal_Objects) $(Enclave_Unseal_Objects) App/Enclave_Seal_u.* App/Enclave_Unseal_u.* Enclave_Seal/Enclave_Seal_t.* Enclave_Unseal/Enclave_Unseal_t.*
+	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
+	@rm -f $(Enclave_Seal_Objects) App/Enclave_Seal_u.* Enclave_Seal/Enclave_Seal_t.*

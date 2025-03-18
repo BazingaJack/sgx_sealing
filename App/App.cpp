@@ -1,34 +1,3 @@
-/*
- * Copyright (C) 2011-2021 Intel Corporation. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright
- *     notice, this list of conditions and the following disclaimer in
- *     the documentation and/or other materials provided with the
- *     distribution.
- *   * Neither the name of Intel Corporation nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
-
 // App.cpp : Define the entry point for the console application.
 //
 
@@ -40,7 +9,6 @@
 
 #include "sgx_urts.h"
 #include "Enclave_Seal_u.h"
-#include "Enclave_Unseal_u.h"
 
 #include "ErrorSupport.h"
 
@@ -55,8 +23,15 @@
 #define UNSEALED_DECRYPT_DATA "unsealed_decrypt_data.txt"
 #define SEALED_KEY_FILE "sealed_key.txt"
 #define SEALED_RSA_PRI_KEY_FILE "sealed_rsa_pri_key.txt"
-#define RSA_FACTOR_N_FILE "rsa_factor_n.txt"
+#define RSA_FACTOR_N "rsa_factor_n.txt"
+#define RSA_FACTOR_P "rsa_factor_p.txt"
+#define RSA_FACTOR_Q "rsa_factor_q.txt"
+#define RSA_FACTOR_DMP1 "rsa_factor_dmp1.txt"
+#define RSA_FACTOR_DMQ1 "rsa_factor_dmq1.txt"
+#define RSA_FACTOR_IQMP "rsa_factor_iqmp.txt"
+#define RSA_FACTOR_FILE "rsa_factor.txt"
 #define RSA_ENCRYPTED_DATA_FILE "rsa_encrypted_data.txt"
+#define RSA_DECRYPTED_DATA_FILE "rsa_decrypted_data.txt"
 
 void ocall_print_string(const char *str)
 {
@@ -103,6 +78,28 @@ static bool read_file_to_buf(const char *filename, uint8_t *buf, size_t bsize)
     return true;
 }
 
+static bool read_file_to_batch_buf(const char *filename, uint8_t* bufs[], size_t bsize, size_t batch_size)
+{
+    std::ifstream ifs(filename, std::ios::binary | std::ios::in);
+    for(size_t i = 0; i < batch_size; i++)
+    {
+        if (filename == NULL || bufs[i] == NULL || bsize == 0)
+            return false;
+        if (!ifs.good())
+        {
+            std::cout << "Failed to open the file \"" << filename << "\"" << std::endl;
+            return false;
+        }
+        ifs.read(reinterpret_cast<char *> (bufs[i]), bsize);
+        if (ifs.fail())
+        {
+            std::cout << "Failed to read the file \"" << filename << "\"" << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool write_buf_to_file(const char *filename, const uint8_t *buf, size_t bsize, long offset)
 {
     if (filename == NULL || buf == NULL || bsize == 0)
@@ -119,6 +116,30 @@ static bool write_buf_to_file(const char *filename, const uint8_t *buf, size_t b
     {
         std::cout << "Failed to write the file \"" << filename << "\"" << std::endl;
         return false;
+    }
+
+    return true;
+}
+
+static bool write_batch_buf_to_file(const char *filename, uint8_t* bufs[], size_t bsize, size_t batch_size, long offset)
+{
+    std::ofstream ofs(filename, std::ios::binary | std::ios::out);
+    for(size_t i = 0; i < batch_size; i++)
+    {
+        if (filename == NULL || bufs[i] == NULL || bsize == 0)
+            return false;
+        if (!ofs.good())
+        {
+            std::cout << "Failed to open the file \"" << filename << "\"" << std::endl;
+            return false;
+        }
+        ofs.seekp(offset * i, std::ios::beg);
+        ofs.write(reinterpret_cast<const char*>(bufs[i]), bsize);
+        if (ofs.fail())
+        {
+            std::cout << "Failed to write the file \"" << filename << "\"" << std::endl;
+            return false;
+        }
     }
 
     return true;
@@ -335,39 +356,20 @@ static bool generate_rsa_keypair_and_seal()
         return false;
     }
 
-    size_t fsize_mac = 0;
-    size_t fsize_prikey = sizeof(sgx_rsa3072_key_t);
+    unsigned char* n = (unsigned char*)malloc(384);
+    unsigned char* p = (unsigned char*)malloc(192);
+    unsigned char* q = (unsigned char*)malloc(192);
+    unsigned char* dmp1 = (unsigned char*)malloc(192);
+    unsigned char* dmq1 = (unsigned char*)malloc(192);
+    unsigned char* iqmp = (unsigned char*)malloc(192);
 
-    // Get the sealed data size
-    uint32_t sealed_data_size = 0;
-    ret = get_sealed_data_size(eid_seal, &sealed_data_size, &fsize_mac, &fsize_prikey);
-    if (ret != SGX_SUCCESS)
-    {
-        ret_error_support(ret);
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
-    else if(sealed_data_size == UINT32_MAX)
-    {
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
-    
-    uint8_t *temp_sealed_buf = (uint8_t *)malloc(sealed_data_size);
-    if(temp_sealed_buf == NULL)
-    {
-        std::cout << "Out of memory" << std::endl;
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
-    unsigned char* p_n = (unsigned char*)malloc(384);
     sgx_status_t retval;
-    ret = generate_rsa_key_and_seal(eid_seal, &retval, p_n, temp_sealed_buf, sealed_data_size);
+
+    ret = generate_rsa_key_and_seal(eid_seal, &retval, n, p, q, dmp1, dmq1, iqmp);
     if (ret != SGX_SUCCESS)
     {
         std::cout << "Error: ret is not success." << std::endl;
         ret_error_support(ret);
-        free(temp_sealed_buf);
         sgx_destroy_enclave(eid_seal);
         return false;
     }
@@ -375,31 +377,29 @@ static bool generate_rsa_keypair_and_seal()
     {
         std::cout << "Error: retval is not success." << std::endl;
         ret_error_support(retval);
-        free(temp_sealed_buf);
         sgx_destroy_enclave(eid_seal);
         return false;
     }
 
-    // Save the factor n
-    if (write_buf_to_file(RSA_FACTOR_N_FILE, p_n, 384, 0) == false)
-    {
-        std::cout << "Failed to save the pubkey to \"" << RSA_FACTOR_N_FILE << "\"" << std::endl;
-        free(p_n);
+    // Save the factors
+    if (write_buf_to_file(RSA_FACTOR_N, n, 384, 0) == false ||
+        write_buf_to_file(RSA_FACTOR_P, p, 192, 0) == false ||
+        write_buf_to_file(RSA_FACTOR_Q, q, 192, 0) == false ||
+        write_buf_to_file(RSA_FACTOR_DMP1, dmp1, 192, 0) == false ||
+        write_buf_to_file(RSA_FACTOR_DMQ1, dmq1, 192, 0) == false ||
+        write_buf_to_file(RSA_FACTOR_IQMP, iqmp, 192, 0) == false ){
+        std::cout << "Failed to save the params " << "to \"" << "\"" << std::endl;
         sgx_destroy_enclave(eid_seal);
         return false;
     }
 
-    // Save the sealed blob
-    if (write_buf_to_file(SEALED_RSA_PRI_KEY_FILE, temp_sealed_buf, sealed_data_size, 0) == false)
-    {
-        std::cout << "Failed to save the sealed prikey to \"" << SEALED_RSA_PRI_KEY_FILE << "\"" << std::endl;
-        free(temp_sealed_buf);
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
+    free(n);
+    free(p);
+    free(q);
+    free(dmp1);
+    free(dmq1);
+    free(iqmp);
 
-    free(p_n);
-    free(temp_sealed_buf);
     sgx_destroy_enclave(eid_seal);
 
     std::cout << "generate rsa keypair succeeded." << std::endl;
@@ -440,14 +440,10 @@ static bool encrypt_by_rsa()
         return false;
     }
 
+    std::cout << "fsize_data: " << fsize_data << std::endl;
+
     // Read the pubkey from the file
-    size_t fsize_n = get_file_size(RSA_FACTOR_N_FILE);
-    if (fsize_n == (size_t)-1)
-    {
-        std::cout << "Failed to get the file size of \"" << RSA_FACTOR_N_FILE << "\"" << std::endl;
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
+    size_t fsize_n = 384;
     uint8_t *temp_buf_n = (uint8_t *)malloc(fsize_n);
     if(temp_buf_n == NULL)
     {
@@ -455,36 +451,18 @@ static bool encrypt_by_rsa()
         sgx_destroy_enclave(eid_seal);
         return false;
     }
-    if (read_file_to_buf(RSA_FACTOR_N_FILE, temp_buf_n, fsize_n) == false)
+    if (read_file_to_buf(RSA_FACTOR_N, temp_buf_n, fsize_n) == false)
     {
-        std::cout << "Failed to read the pubkey from \"" << RSA_FACTOR_N_FILE << "\"" << std::endl;
+        std::cout << "Failed to read the pubkey from \"" << RSA_FACTOR_FILE << "\"" << std::endl;
         free(temp_buf_n);
         sgx_destroy_enclave(eid_seal);
         return false;
     }
 
     sgx_status_t retval;
-    size_t encrypted_data_size = 0;
-    ret = encrypt_by_rsa_pubkey(eid_seal, &retval, temp_buf_n, temp_buf_data, fsize_data, NULL, &encrypted_data_size);
-    uint8_t *temp_encrypted_buf = (uint8_t *)malloc(encrypted_data_size);
-    ret = encrypt_by_rsa_pubkey(eid_seal, &retval, temp_buf_n, temp_buf_data, fsize_data, temp_encrypted_buf, &encrypted_data_size);
-
-    if (ret != SGX_SUCCESS)
-    {
-        std::cout << "Error: ret is not success." << std::endl;
-        ret_error_support(ret);
-        free(temp_encrypted_buf);
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
-    else if( retval != SGX_SUCCESS)
-    {
-        std::cout << "Error: retval is not success." << std::endl;
-        ret_error_support(retval);
-        free(temp_encrypted_buf);
-        sgx_destroy_enclave(eid_seal);
-        return false;
-    }
+    size_t encrypted_data_size = 384;
+    unsigned char* temp_encrypted_buf = (unsigned char*)malloc(encrypted_data_size);
+    ret = encrypt_by_rsa_pubkey(eid_seal, &retval, temp_buf_n, temp_buf_data, fsize_data, temp_encrypted_buf, encrypted_data_size);
 
     if(encrypted_data_size != 0)
     {
@@ -502,117 +480,121 @@ static bool encrypt_by_rsa()
         return false;
     }
 
-    free(temp_encrypted_buf);
+    free(temp_buf_n);
     free(temp_buf_data);
+    free(temp_encrypted_buf);
+
     sgx_destroy_enclave(eid_seal);
 
     std::cout << "Encrypt by rsa succeeded." << std::endl;
     return true;
 }
 
-//TODO : Implement the function decrypt_by_rsa
 static bool decrypt_by_rsa()
 {
-    // sgx_enclave_id_t eid_seal = 0;
-    // // Load the enclave for sealing
-    // sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
-    // if (ret != SGX_SUCCESS)
-    // {
-    //     ret_error_support(ret);
-    //     return false;
-    // }
+    sgx_enclave_id_t eid_seal = 0;
+    // Load the enclave for sealing
+    sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
+    if (ret != SGX_SUCCESS)
+    {
+        ret_error_support(ret);
+        return false;
+    }
 
-    // // Read the origin data from the file
-    // size_t fsize_data = get_file_size(ORIGIN_DATA);
-    // if (fsize_data == (size_t)-1)
-    // {
-    //     std::cout << "Failed to get the file size of \"" << ORIGIN_DATA << "\"" << std::endl;
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
-    // uint8_t *temp_buf_data = (uint8_t *)malloc(fsize_data);
-    // if(temp_buf_data == NULL)
-    // {
-    //     std::cout << "Out of memory" << std::endl;
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
-    // if (read_file_to_buf(ORIGIN_DATA, temp_buf_data, fsize_data) == false)
-    // {
-    //     std::cout << "Failed to read the origin data from \"" << ORIGIN_DATA << "\"" << std::endl;
-    //     free(temp_buf_data);
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
+    // Read the encrypted data from the file
+    size_t fsize_data = get_file_size(RSA_ENCRYPTED_DATA_FILE);
+    if (fsize_data == (size_t)-1)
+    {
+        std::cout << "Failed to get the file size of \"" << RSA_ENCRYPTED_DATA_FILE << "\"" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    uint8_t *temp_buf_data = (uint8_t *)malloc(fsize_data);
+    if(temp_buf_data == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(RSA_ENCRYPTED_DATA_FILE, temp_buf_data, fsize_data) == false)
+    {
+        std::cout << "Failed to read the origin data from \"" << RSA_ENCRYPTED_DATA_FILE << "\"" << std::endl;
+        free(temp_buf_data);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
 
-    // // Read the pubkey from the file
-    // size_t fsize_n = get_file_size(RSA_FACTOR_N_FILE);
-    // if (fsize_n == (size_t)-1)
-    // {
-    //     std::cout << "Failed to get the file size of \"" << RSA_FACTOR_N_FILE << "\"" << std::endl;
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
-    // uint8_t *temp_buf_n = (uint8_t *)malloc(fsize_n);
-    // if(temp_buf_n == NULL)
-    // {
-    //     std::cout << "Out of memory" << std::endl;
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
-    // if (read_file_to_buf(RSA_FACTOR_N_FILE, temp_buf_n, fsize_n) == false)
-    // {
-    //     std::cout << "Failed to read the pubkey from \"" << RSA_FACTOR_N_FILE << "\"" << std::endl;
-    //     free(temp_buf_n);
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
+    // Read the factor from the file
+    size_t fsize = 192;
+    unsigned char *temp_buf_p = (unsigned char *)malloc(fsize);
+    unsigned char *temp_buf_q = (unsigned char *)malloc(fsize);
+    unsigned char *temp_buf_dmp1 = (unsigned char *)malloc(fsize);
+    unsigned char *temp_buf_dmq1 = (unsigned char *)malloc(fsize);
+    unsigned char *temp_buf_iqmp = (unsigned char *)malloc(fsize);
+    if(temp_buf_p == NULL || temp_buf_q == NULL || temp_buf_dmp1 == NULL || temp_buf_dmq1 == NULL || temp_buf_iqmp == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(RSA_FACTOR_P, temp_buf_p, fsize) == false ||
+        read_file_to_buf(RSA_FACTOR_Q, temp_buf_q, fsize) == false ||
+        read_file_to_buf(RSA_FACTOR_DMP1, temp_buf_dmp1, fsize) == false ||
+        read_file_to_buf(RSA_FACTOR_DMQ1, temp_buf_dmq1, fsize) == false ||
+        read_file_to_buf(RSA_FACTOR_IQMP, temp_buf_iqmp, fsize) == false)
+    {
+        std::cout << "Failed to read the factor from \""  << "\"" << std::endl;
+        free(temp_buf_p);
+        free(temp_buf_q);
+        free(temp_buf_dmp1);
+        free(temp_buf_dmq1);
+        free(temp_buf_iqmp);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    
+    sgx_status_t retval;
+    size_t decrypted_data_size = 384;
+    unsigned char* temp_decrypted_buf = (unsigned char*)malloc(decrypted_data_size);
+    ret = decrypt_by_rsa_prikey(eid_seal, &retval, temp_buf_p, temp_buf_q, temp_buf_dmp1, temp_buf_dmq1, temp_buf_iqmp, temp_buf_data, fsize_data, temp_decrypted_buf, decrypted_data_size);
 
-    // sgx_status_t retval;
-    // size_t encrypted_data_size = 0;
-    // ret = encrypt_by_rsa_pubkey(eid_seal, &retval, temp_buf_n, temp_buf_data, fsize_data, NULL, &encrypted_data_size);
-    // uint8_t *temp_encrypted_buf = (uint8_t *)malloc(encrypted_data_size);
-    // ret = encrypt_by_rsa_pubkey(eid_seal, &retval, temp_buf_n, temp_buf_data, fsize_data, temp_encrypted_buf, &encrypted_data_size);
+    if (ret != SGX_SUCCESS)
+    {
+        std::cout << "Error: ret is not success." << std::endl;
+        ret_error_support(ret);
+        free(temp_decrypted_buf);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    else if( retval != SGX_SUCCESS)
+    {
+        std::cout << "Error: retval is not success." << std::endl;
+        ret_error_support(retval);
+        free(temp_decrypted_buf);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
 
-    // if (ret != SGX_SUCCESS)
-    // {
-    //     std::cout << "Error: ret is not success." << std::endl;
-    //     ret_error_support(ret);
-    //     free(temp_encrypted_buf);
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
-    // else if( retval != SGX_SUCCESS)
-    // {
-    //     std::cout << "Error: retval is not success." << std::endl;
-    //     ret_error_support(retval);
-    //     free(temp_encrypted_buf);
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
+    // Save the decrypted data
+    if (write_buf_to_file(RSA_DECRYPTED_DATA_FILE, temp_decrypted_buf, decrypted_data_size, 0) == false)
+    {
+        std::cout << "Failed to save the rsa decrypted data to \"" << RSA_DECRYPTED_DATA_FILE << "\"" << std::endl;
+        free(temp_decrypted_buf);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
 
-    // if(encrypted_data_size != 0)
-    // {
-    //     std::cout << "encrypted_data_size: " << encrypted_data_size << std::endl;
-    // } else {
-    //     std::cout << "encrypted_data_size is NULL" << std::endl;
-    // }
+    free(temp_buf_p);
+    free(temp_buf_q);
+    free(temp_buf_dmp1);
+    free(temp_buf_dmq1);
+    free(temp_buf_iqmp);
+    free(temp_decrypted_buf);
+    free(temp_buf_data);
+    sgx_destroy_enclave(eid_seal);
 
-    // // Save the encrypted data
-    // if (write_buf_to_file(RSA_ENCRYPTED_DATA_FILE, temp_encrypted_buf, encrypted_data_size, 0) == false)
-    // {
-    //     std::cout << "Failed to save the rsa encrypted data to \"" << RSA_ENCRYPTED_DATA_FILE << "\"" << std::endl;
-    //     free(temp_encrypted_buf);
-    //     sgx_destroy_enclave(eid_seal);
-    //     return false;
-    // }
-
-    // free(temp_encrypted_buf);
-    // free(temp_buf_data);
-    // sgx_destroy_enclave(eid_seal);
-
-    // std::cout << "Encrypt by rsa succeeded." << std::endl;
-    // return true;
+    std::cout << "Decrypt by rsa succeeded." << std::endl;
+    return true;
 }
 
 static bool read_and_unseal_data()
@@ -723,19 +705,16 @@ static bool read_and_unseal_data()
     return true;
 }
 
-
 int main(int argc, char* argv[])
 {
     (void)argc, (void)argv;
 
-    // // Enclave_Seal: seal the secret and save the data blob to a file
     // if (seal_and_save_data() == false)
     // {
     //     std::cout << "Failed to seal the secret and save it to a file." << std::endl;
     //     return -1;
     // }
 
-    // // Enclave_Unseal: read the data blob from the file and unseal it.
     // if (read_and_unseal_data() == false)
     // {
     //     std::cout << "Failed to unseal the data blob." << std::endl;
@@ -757,6 +736,12 @@ int main(int argc, char* argv[])
     if(encrypt_by_rsa() == false)
     {
         std::cout << "Failed to encrypt by rsa." << std::endl;
+        return -1;
+    }
+
+    if(decrypt_by_rsa() == false)
+    {
+        std::cout << "Failed to decrypt by rsa." << std::endl;
         return -1;
     }
 
