@@ -18,11 +18,15 @@
 #define ENCLAVE_NAME_UNSEAL "libenclave_unseal.signed.so"
 #define ORIGIN_MAC_TEXT "origin_mac_text.txt"
 #define ORIGIN_DATA "origin_data.txt"
-#define SEALED_DATA_FILE "sealed_data_blob.txt"
+#define SEALED_DATA_FILE "sealed_data.txt"
 #define UNSEALED_MAC_TEXT "unsealed_mac_text.txt"
 #define UNSEALED_DECRYPT_DATA "unsealed_decrypt_data.txt"
 #define SEALED_KEY_FILE "sealed_key.txt"
 #define SEALED_RSA_PRI_KEY_FILE "sealed_rsa_pri_key.txt"
+#define KEY_FACTOR_FOLDER "test/key_factor/"
+#define DATA_FOLDER "test/data/"
+#define EN_DATA "encrypted_data.txt"
+#define DE_DATA "decrypted_data.txt"
 #define RSA_FACTOR_N "rsa_factor_n.txt"
 #define RSA_FACTOR_P "rsa_factor_p.txt"
 #define RSA_FACTOR_Q "rsa_factor_q.txt"
@@ -345,7 +349,7 @@ static bool generate_key_and_seal()
     return true;
 }
 
-static bool generate_rsa_keypair_and_seal()
+static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
 {
     sgx_enclave_id_t eid_seal = 0;
     // Load the enclave for sealing
@@ -382,12 +386,12 @@ static bool generate_rsa_keypair_and_seal()
     }
 
     // Save the factors
-    if (write_buf_to_file(RSA_FACTOR_N, n, 384, 0) == false ||
-        write_buf_to_file(RSA_FACTOR_P, p, 192, 0) == false ||
-        write_buf_to_file(RSA_FACTOR_Q, q, 192, 0) == false ||
-        write_buf_to_file(RSA_FACTOR_DMP1, dmp1, 192, 0) == false ||
-        write_buf_to_file(RSA_FACTOR_DMQ1, dmq1, 192, 0) == false ||
-        write_buf_to_file(RSA_FACTOR_IQMP, iqmp, 192, 0) == false ){
+    if (write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_N).c_str(), n, 384, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_P).c_str(), p, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_Q).c_str(), q, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_DMP1).c_str(), dmp1, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_DMQ1).c_str(), dmq1, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_IQMP).c_str(), iqmp, 192, 0) == false ){
         std::cout << "Failed to save the params " << "to \"" << "\"" << std::endl;
         sgx_destroy_enclave(eid_seal);
         return false;
@@ -406,7 +410,7 @@ static bool generate_rsa_keypair_and_seal()
     return true;
 }
 
-static bool encrypt_by_rsa()
+static bool encrypt_by_rsa(const char* input_data_path, const char* key_factor_path, const char* output_encrypted_path)
 {
     sgx_enclave_id_t eid_seal = 0;
     // Load the enclave for sealing
@@ -417,11 +421,15 @@ static bool encrypt_by_rsa()
         return false;
     }
 
+    std::string input_file = (std::string(input_data_path) + ORIGIN_DATA);
+    std::string key_factor_n_file = (std::string(key_factor_path) + RSA_FACTOR_N);
+    std::string output_encrypted_file = (std::string(output_encrypted_path) + EN_DATA);
+
     // Read the origin data from the file
-    size_t fsize_data = get_file_size(ORIGIN_DATA);
+    size_t fsize_data = get_file_size(input_file.c_str());
     if (fsize_data == (size_t)-1)
     {
-        std::cout << "Failed to get the file size of \"" << ORIGIN_DATA << "\"" << std::endl;
+        std::cout << "Failed to get the file size of \"" << input_file << "\"" << std::endl;
         sgx_destroy_enclave(eid_seal);
         return false;
     }
@@ -432,9 +440,9 @@ static bool encrypt_by_rsa()
         sgx_destroy_enclave(eid_seal);
         return false;
     }
-    if (read_file_to_buf(ORIGIN_DATA, temp_buf_data, fsize_data) == false)
+    if (read_file_to_buf(input_file.c_str(), temp_buf_data, fsize_data) == false)
     {
-        std::cout << "Failed to read the origin data from \"" << ORIGIN_DATA << "\"" << std::endl;
+        std::cout << "Failed to read the origin data from \"" << input_file << "\"" << std::endl;
         free(temp_buf_data);
         sgx_destroy_enclave(eid_seal);
         return false;
@@ -451,9 +459,9 @@ static bool encrypt_by_rsa()
         sgx_destroy_enclave(eid_seal);
         return false;
     }
-    if (read_file_to_buf(RSA_FACTOR_N, temp_buf_n, fsize_n) == false)
+    if (read_file_to_buf(key_factor_n_file.c_str(), temp_buf_n, fsize_n) == false)
     {
-        std::cout << "Failed to read the pubkey from \"" << RSA_FACTOR_FILE << "\"" << std::endl;
+        std::cout << "Failed to read the pubkey from \"" << key_factor_n_file << "\"" << std::endl;
         free(temp_buf_n);
         sgx_destroy_enclave(eid_seal);
         return false;
@@ -472,9 +480,9 @@ static bool encrypt_by_rsa()
     }
 
     // Save the encrypted data
-    if (write_buf_to_file(RSA_ENCRYPTED_DATA_FILE, temp_encrypted_buf, encrypted_data_size, 0) == false)
+    if (write_buf_to_file(output_encrypted_file.c_str(), temp_encrypted_buf, encrypted_data_size, 0) == false)
     {
-        std::cout << "Failed to save the rsa encrypted data to \"" << RSA_ENCRYPTED_DATA_FILE << "\"" << std::endl;
+        std::cout << "Failed to save the rsa encrypted data to \"" << output_encrypted_file << "\"" << std::endl;
         free(temp_encrypted_buf);
         sgx_destroy_enclave(eid_seal);
         return false;
@@ -490,7 +498,7 @@ static bool encrypt_by_rsa()
     return true;
 }
 
-static bool decrypt_by_rsa()
+static bool decrypt_by_rsa(const char* input_data_path, const char* key_factor_path, const char* output_decrypted_path)
 {
     sgx_enclave_id_t eid_seal = 0;
     // Load the enclave for sealing
@@ -501,11 +509,19 @@ static bool decrypt_by_rsa()
         return false;
     }
 
+    std::string input_file = (std::string(input_data_path) + EN_DATA);
+    std::string key_factor_p_file = (std::string(key_factor_path) + RSA_FACTOR_P);
+    std::string key_factor_q_file = (std::string(key_factor_path) + RSA_FACTOR_Q);
+    std::string key_factor_dmp1_file = (std::string(key_factor_path) + RSA_FACTOR_DMP1);
+    std::string key_factor_dmq1_file = (std::string(key_factor_path) + RSA_FACTOR_DMQ1);
+    std::string key_factor_iqmp_file = (std::string(key_factor_path) + RSA_FACTOR_IQMP);
+    std::string output_decrypted_file = (std::string(output_decrypted_path) + DE_DATA);
+
     // Read the encrypted data from the file
-    size_t fsize_data = get_file_size(RSA_ENCRYPTED_DATA_FILE);
+    size_t fsize_data = get_file_size(input_file.c_str());
     if (fsize_data == (size_t)-1)
     {
-        std::cout << "Failed to get the file size of \"" << RSA_ENCRYPTED_DATA_FILE << "\"" << std::endl;
+        std::cout << "Failed to get the file size of \"" << input_file << "\"" << std::endl;
         sgx_destroy_enclave(eid_seal);
         return false;
     }
@@ -516,9 +532,9 @@ static bool decrypt_by_rsa()
         sgx_destroy_enclave(eid_seal);
         return false;
     }
-    if (read_file_to_buf(RSA_ENCRYPTED_DATA_FILE, temp_buf_data, fsize_data) == false)
+    if (read_file_to_buf(input_file.c_str(), temp_buf_data, fsize_data) == false)
     {
-        std::cout << "Failed to read the origin data from \"" << RSA_ENCRYPTED_DATA_FILE << "\"" << std::endl;
+        std::cout << "Failed to read the origin data from \"" << input_file << "\"" << std::endl;
         free(temp_buf_data);
         sgx_destroy_enclave(eid_seal);
         return false;
@@ -537,11 +553,11 @@ static bool decrypt_by_rsa()
         sgx_destroy_enclave(eid_seal);
         return false;
     }
-    if (read_file_to_buf(RSA_FACTOR_P, temp_buf_p, fsize) == false ||
-        read_file_to_buf(RSA_FACTOR_Q, temp_buf_q, fsize) == false ||
-        read_file_to_buf(RSA_FACTOR_DMP1, temp_buf_dmp1, fsize) == false ||
-        read_file_to_buf(RSA_FACTOR_DMQ1, temp_buf_dmq1, fsize) == false ||
-        read_file_to_buf(RSA_FACTOR_IQMP, temp_buf_iqmp, fsize) == false)
+    if (read_file_to_buf(key_factor_p_file.c_str(), temp_buf_p, fsize) == false ||
+        read_file_to_buf(key_factor_q_file.c_str(), temp_buf_q, fsize) == false ||
+        read_file_to_buf(key_factor_dmp1_file.c_str(), temp_buf_dmp1, fsize) == false ||
+        read_file_to_buf(key_factor_dmq1_file.c_str(), temp_buf_dmq1, fsize) == false ||
+        read_file_to_buf(key_factor_iqmp_file.c_str(), temp_buf_iqmp, fsize) == false)
     {
         std::cout << "Failed to read the factor from \""  << "\"" << std::endl;
         free(temp_buf_p);
@@ -576,9 +592,9 @@ static bool decrypt_by_rsa()
     }
 
     // Save the decrypted data
-    if (write_buf_to_file(RSA_DECRYPTED_DATA_FILE, temp_decrypted_buf, decrypted_data_size, 0) == false)
+    if (write_buf_to_file(output_decrypted_file.c_str(), temp_decrypted_buf, decrypted_data_size, 0) == false)
     {
-        std::cout << "Failed to save the rsa decrypted data to \"" << RSA_DECRYPTED_DATA_FILE << "\"" << std::endl;
+        std::cout << "Failed to save the rsa decrypted data to \"" << output_decrypted_file << "\"" << std::endl;
         free(temp_decrypted_buf);
         sgx_destroy_enclave(eid_seal);
         return false;
@@ -707,42 +723,52 @@ static bool read_and_unseal_data()
 
 int main(int argc, char* argv[])
 {
-    (void)argc, (void)argv;
-
-    // if (seal_and_save_data() == false)
-    // {
-    //     std::cout << "Failed to seal the secret and save it to a file." << std::endl;
-    //     return -1;
-    // }
-
-    // if (read_and_unseal_data() == false)
-    // {
-    //     std::cout << "Failed to unseal the data blob." << std::endl;
-    //     return -1;
-    // }
-
-    // if(generate_key_and_seal() == false)
-    // {
-    //     std::cout << "Failed to generate and seal the data blob." << std::endl;
-    //     return -1;
-    // }
-
-    if(generate_rsa_keypair_and_seal() == false)
+    if (argc < 2)
     {
-        std::cout << "Failed to generate rsa keypair." << std::endl;
+        std::cout << "Usage: " << argv[0] << " <command> [file paths]" << std::endl;
+        std::cout << "Commands:" << std::endl;
+        std::cout << "  generate_key_and_seal [output_key_factor_path]" << std::endl;
+        std::cout << "  encrypt [input_data_path] [key_factor_path] [output_encrypted_path]" << std::endl;
+        std::cout << "  decrypt [input_encrypted_path] [factor_p_path] [factor_q_path] [factor_dmp1_path] [factor_dmq1_path] [factor_iqmp_path] [output_decrypted_path]" << std::endl;
         return -1;
     }
 
-    if(encrypt_by_rsa() == false)
-    {
-        std::cout << "Failed to encrypt by rsa." << std::endl;
-        return -1;
-    }
+    std::string command = argv[1];
 
-    if(decrypt_by_rsa() == false)
-    {
-        std::cout << "Failed to decrypt by rsa." << std::endl;
-        return -1;
+    if(command == "generate_rsa_key") {
+        const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
+        if(generate_rsa_keypair_and_seal(key_factor_path)) {
+            std::cout << "Successfully generate rsa key." << std::endl;
+            return 1;
+        } else {
+            std::cerr << "Failed to generate rsa keypair." << std::endl;
+            return -1;
+        }
+    } else if (command == "encrypt") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
+        if(encrypt_by_rsa(input_path, key_path, output_path)) {
+            std::cout << "Successfully encrypt by rsa." << std::endl;
+            return 1;
+        } else {
+            std::cerr << "Failed to encrypt by rsa." << std::endl;
+            return -1;
+        }
+    } else if (command == "decrypt") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
+        if(decrypt_by_rsa(input_path, key_path, output_path)) {
+            std::cout << "Successfully decrypt by rsa." << std::endl;
+            return 1;
+        } else {
+            std::cerr << "Failed to decrypt by rsa." << std::endl;
+            return -1;
+        }
+    } else {
+        std::cerr << "Unknown command: " << command << std::endl;
+        return 1;
     }
 
     return 0;
