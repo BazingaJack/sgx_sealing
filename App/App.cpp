@@ -739,7 +739,7 @@ int main(int argc, char* argv[])
         const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
         if(generate_rsa_keypair_and_seal(key_factor_path)) {
             std::cout << "Successfully generate rsa key." << std::endl;
-            return 1;
+            return 0;
         } else {
             std::cerr << "Failed to generate rsa keypair." << std::endl;
             return -1;
@@ -750,7 +750,7 @@ int main(int argc, char* argv[])
         const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
         if(encrypt_by_rsa(input_path, key_path, output_path)) {
             std::cout << "Successfully encrypt by rsa." << std::endl;
-            return 1;
+            return 0;
         } else {
             std::cerr << "Failed to encrypt by rsa." << std::endl;
             return -1;
@@ -761,14 +761,14 @@ int main(int argc, char* argv[])
         const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
         if(decrypt_by_rsa(input_path, key_path, output_path)) {
             std::cout << "Successfully decrypt by rsa." << std::endl;
-            return 1;
+            return 0;
         } else {
             std::cerr << "Failed to decrypt by rsa." << std::endl;
             return -1;
         }
     } else {
         std::cerr << "Unknown command: " << command << std::endl;
-        return 1;
+        return -1;
     }
 
     return 0;

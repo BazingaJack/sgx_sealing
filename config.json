@@ -1,0 +1,5 @@
+{
+    "binary_path": "./app",
+    "data_folder": "./test/data",
+    "key_factor_folder": "./test/key_factor"
+}
