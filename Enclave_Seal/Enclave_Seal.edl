@@ -10,6 +10,7 @@ enclave {
                                       [out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
         public sgx_status_t generate_aes_key_and_seal([out, size=key_size] uint8_t* p_aes_key, uint32_t key_size);
         public sgx_status_t generate_rsa_key_and_seal([out, size=384] unsigned char* p_n,
+                                                      [out, size=384] unsigned char* p_d,
                                                       [out, size=192] unsigned char* p_p,
                                                       [out, size=192] unsigned char* p_q,
                                                       [out, size=192] unsigned char* p_dmp1,
@@ -31,6 +32,14 @@ enclave {
                                                   [in,size=192] unsigned char* p_iqmp,
                                                   [in, size=data_size] uint8_t* p_data, size_t data_size,
                                                   [out, size=decrypt_data_size] uint8_t* p_decrypt_data, size_t decrypt_data_size);
+        public sgx_status_t sign_data_with_rsa([in,size=384] unsigned char* p_n,
+                                               [in,size=384] unsigned char* p_d,
+                                               [in, size=data_len] uint8_t* p_data, size_t data_len,
+                                               [out, size=384] uint8_t* p_sig);
+        public sgx_status_t verify_signature_with_rsa([in,size=384] unsigned char* p_n,
+                                                      [in, size=data_len] uint8_t* p_data, size_t data_len,
+                                                      [in, size=384] uint8_t* p_sig,
+                                                      [out,size=1] uint8_t* is_valid);
     };
 
     untrusted {

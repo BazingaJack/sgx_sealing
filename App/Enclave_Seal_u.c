@@ -26,6 +26,7 @@ typedef struct ms_generate_aes_key_and_seal_t {
 typedef struct ms_generate_rsa_key_and_seal_t {
 	sgx_status_t ms_retval;
 	unsigned char* ms_p_n;
+	unsigned char* ms_p_d;
 	unsigned char* ms_p_p;
 	unsigned char* ms_p_q;
 	unsigned char* ms_p_dmp1;
@@ -71,6 +72,24 @@ typedef struct ms_decrypt_by_rsa_prikey_t {
 	uint8_t* ms_p_decrypt_data;
 	size_t ms_decrypt_data_size;
 } ms_decrypt_by_rsa_prikey_t;
+
+typedef struct ms_sign_data_with_rsa_t {
+	sgx_status_t ms_retval;
+	unsigned char* ms_p_n;
+	unsigned char* ms_p_d;
+	uint8_t* ms_p_data;
+	size_t ms_data_len;
+	uint8_t* ms_p_sig;
+} ms_sign_data_with_rsa_t;
+
+typedef struct ms_verify_signature_with_rsa_t {
+	sgx_status_t ms_retval;
+	unsigned char* ms_p_n;
+	uint8_t* ms_p_data;
+	size_t ms_data_len;
+	uint8_t* ms_p_sig;
+	uint8_t* ms_is_valid;
+} ms_verify_signature_with_rsa_t;
 
 typedef struct ms_ocall_print_string_t {
 	const char* ms_str;
@@ -216,11 +235,12 @@ sgx_status_t generate_aes_key_and_seal(sgx_enclave_id_t eid, sgx_status_t* retva
 	return status;
 }
 
-sgx_status_t generate_rsa_key_and_seal(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, unsigned char* p_p, unsigned char* p_q, unsigned char* p_dmp1, unsigned char* p_dmq1, unsigned char* p_iqmp)
+sgx_status_t generate_rsa_key_and_seal(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, unsigned char* p_d, unsigned char* p_p, unsigned char* p_q, unsigned char* p_dmp1, unsigned char* p_dmq1, unsigned char* p_iqmp)
 {
 	sgx_status_t status;
 	ms_generate_rsa_key_and_seal_t ms;
 	ms.ms_p_n = p_n;
+	ms.ms_p_d = p_d;
 	ms.ms_p_p = p_p;
 	ms.ms_p_q = p_q;
 	ms.ms_p_dmp1 = p_dmp1;
@@ -286,6 +306,34 @@ sgx_status_t decrypt_by_rsa_prikey(sgx_enclave_id_t eid, sgx_status_t* retval, u
 	ms.ms_p_decrypt_data = p_decrypt_data;
 	ms.ms_decrypt_data_size = decrypt_data_size;
 	status = sgx_ecall(eid, 7, &ocall_table_Enclave_Seal, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t sign_data_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, unsigned char* p_d, uint8_t* p_data, size_t data_len, uint8_t* p_sig)
+{
+	sgx_status_t status;
+	ms_sign_data_with_rsa_t ms;
+	ms.ms_p_n = p_n;
+	ms.ms_p_d = p_d;
+	ms.ms_p_data = p_data;
+	ms.ms_data_len = data_len;
+	ms.ms_p_sig = p_sig;
+	status = sgx_ecall(eid, 8, &ocall_table_Enclave_Seal, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t verify_signature_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, uint8_t* p_data, size_t data_len, uint8_t* p_sig, uint8_t* is_valid)
+{
+	sgx_status_t status;
+	ms_verify_signature_with_rsa_t ms;
+	ms.ms_p_n = p_n;
+	ms.ms_p_data = p_data;
+	ms.ms_data_len = data_len;
+	ms.ms_p_sig = p_sig;
+	ms.ms_is_valid = is_valid;
+	status = sgx_ecall(eid, 9, &ocall_table_Enclave_Seal, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }

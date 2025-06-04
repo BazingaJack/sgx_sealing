@@ -28,6 +28,7 @@
 #define EN_DATA "encrypted_data.txt"
 #define DE_DATA "decrypted_data.txt"
 #define RSA_FACTOR_N "rsa_factor_n.txt"
+#define RSA_FACTOR_D "rsa_factor_d.txt"
 #define RSA_FACTOR_P "rsa_factor_p.txt"
 #define RSA_FACTOR_Q "rsa_factor_q.txt"
 #define RSA_FACTOR_DMP1 "rsa_factor_dmp1.txt"
@@ -36,6 +37,7 @@
 #define RSA_FACTOR_FILE "rsa_factor.txt"
 #define RSA_ENCRYPTED_DATA_FILE "rsa_encrypted_data.txt"
 #define RSA_DECRYPTED_DATA_FILE "rsa_decrypted_data.txt"
+#define RSA_SIGNATURE "rsa_signature.txt"
 
 void ocall_print_string(const char *str)
 {
@@ -361,6 +363,7 @@ static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
     }
 
     unsigned char* n = (unsigned char*)malloc(384);
+    unsigned char* d = (unsigned char*)malloc(384);
     unsigned char* p = (unsigned char*)malloc(192);
     unsigned char* q = (unsigned char*)malloc(192);
     unsigned char* dmp1 = (unsigned char*)malloc(192);
@@ -369,7 +372,7 @@ static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
 
     sgx_status_t retval;
 
-    ret = generate_rsa_key_and_seal(eid_seal, &retval, n, p, q, dmp1, dmq1, iqmp);
+    ret = generate_rsa_key_and_seal(eid_seal, &retval, n, d, p, q, dmp1, dmq1, iqmp);
     if (ret != SGX_SUCCESS)
     {
         std::cout << "Error: ret is not success." << std::endl;
@@ -387,6 +390,7 @@ static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
 
     // Save the factors
     if (write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_N).c_str(), n, 384, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_D).c_str(), d, 384, 0) == false ||
         write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_P).c_str(), p, 192, 0) == false ||
         write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_Q).c_str(), q, 192, 0) == false ||
         write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_DMP1).c_str(), dmp1, 192, 0) == false ||
@@ -398,6 +402,7 @@ static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
     }
 
     free(n);
+    free(d);
     free(p);
     free(q);
     free(dmp1);
@@ -721,6 +726,219 @@ static bool read_and_unseal_data()
     return true;
 }
 
+static bool sign_data(const char* input_data_path, const char* key_factor_path)
+{
+    sgx_enclave_id_t eid_seal = 0;
+    // Load the enclave for sealing
+    sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
+    if (ret != SGX_SUCCESS)
+    {
+        ret_error_support(ret);
+        return false;
+    }
+
+    std::string input_file = (std::string(input_data_path) + ORIGIN_DATA);
+    std::string key_factor_n_file = (std::string(key_factor_path) + RSA_FACTOR_N);
+    std::string key_factor_d_file = (std::string(key_factor_path) + RSA_FACTOR_D);
+    std::string signature_file = (std::string(input_data_path) + RSA_SIGNATURE);
+
+    // Read the origin data from the file
+    size_t fsize_data = get_file_size(input_file.c_str());
+    if (fsize_data == (size_t)-1)
+    {
+        std::cout << "Failed to get the file size of \"" << input_file << "\"" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    uint8_t *temp_buf_data = (uint8_t *)malloc(fsize_data);
+    if(temp_buf_data == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(input_file.c_str(), temp_buf_data, fsize_data) == false)
+    {
+        std::cout << "Failed to read the origin data from \"" << input_file << "\"" << std::endl;
+        free(temp_buf_data);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+
+    // Read the factor from the file
+    size_t fsize = 384;
+    unsigned char *temp_buf_n = (unsigned char *)malloc(fsize);
+    unsigned char *temp_buf_d = (unsigned char *)malloc(fsize);
+    if(temp_buf_n == NULL || temp_buf_d == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(key_factor_n_file.c_str(), temp_buf_n, fsize) == false ||
+        read_file_to_buf(key_factor_d_file.c_str(), temp_buf_d, fsize) == false)
+    {
+        std::cout << "Failed to read the factor from \""  << "\"" << std::endl;
+        free(temp_buf_n);
+        free(temp_buf_d);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+
+    // Get the signature of data
+    sgx_status_t retval;
+    uint8_t* signature = (uint8_t*)malloc(384);
+    retval = sign_data_with_rsa(eid_seal, &retval, temp_buf_n, temp_buf_d, temp_buf_data, fsize_data, signature);
+
+    if (ret != SGX_SUCCESS)
+    {
+        std::cout << "Error: ret is not success." << std::endl;
+        ret_error_support(ret);
+        free(signature);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    else if( retval != SGX_SUCCESS)
+    {
+        std::cout << "Error: retval is not success." << std::endl;
+        ret_error_support(retval);
+        free(signature);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+
+    // Save the signature
+    if (write_buf_to_file(signature_file.c_str(), signature, 384, 0) == false)
+    {
+        std::cout << "Failed to save the signature to \"" << signature_file << "\"" << std::endl;
+        free(signature);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    free(temp_buf_n);
+    free(temp_buf_d);
+    free(temp_buf_data);
+    free(signature);
+    sgx_destroy_enclave(eid_seal);
+
+    return true;
+}
+
+static bool verify_signature(const char* input_data_path, const char* key_factor_path)
+{
+    sgx_enclave_id_t eid_seal = 0;
+    // Load the enclave for sealing
+    sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
+    if (ret != SGX_SUCCESS)
+    {
+        ret_error_support(ret);
+        return false;
+    }
+
+    std::string input_file = (std::string(input_data_path) + ORIGIN_DATA);
+    std::string key_factor_n_file = (std::string(key_factor_path) + RSA_FACTOR_N);
+    std::string signature_file = (std::string(input_data_path) + RSA_SIGNATURE);
+
+    // Read the origin data from the file
+    size_t fsize_data = get_file_size(input_file.c_str());
+    if (fsize_data == (size_t)-1)
+    {
+        std::cout << "Failed to get the file size of \"" << input_file << "\"" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    uint8_t *temp_buf_data = (uint8_t *)malloc(fsize_data);
+    if(temp_buf_data == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(input_file.c_str(), temp_buf_data, fsize_data) == false)
+    {
+        std::cout << "Failed to read the origin data from \"" << input_file << "\"" << std::endl;
+        free(temp_buf_data);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+
+    // Read the factor from the file
+    size_t fsize = 384;
+    unsigned char *temp_buf_n = (unsigned char *)malloc(fsize);
+    if(temp_buf_n == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(key_factor_n_file.c_str(), temp_buf_n, fsize) == false)
+    {
+        std::cout << "Failed to read the factor from \""  << "\"" << std::endl;
+    }
+
+    // Read the signature from the file
+    unsigned char *signature = (unsigned char *)malloc(384);
+    if(signature == NULL)
+    {
+        std::cout << "Out of memory" << std::endl;
+        free(temp_buf_n);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    if (read_file_to_buf(signature_file.c_str(), signature, 384) == false)
+    {
+        std::cout << "Failed to read the signature from \"" << signature_file << "\"" << std::endl;
+        free(temp_buf_n);
+        free(signature);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+
+    // Verify the signature
+    sgx_status_t retval;
+    uint8_t* is_valid = (uint8_t*)malloc(1);
+    retval = verify_signature_with_rsa(eid_seal, &retval, temp_buf_n, temp_buf_data, fsize_data, signature, is_valid);
+    if (ret != SGX_SUCCESS)
+    {
+        std::cout << "Error: ret is not success." << std::endl;
+        ret_error_support(ret);
+        free(temp_buf_n);
+        free(signature);
+        free(is_valid);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    else if( retval != SGX_SUCCESS)
+    {
+        std::cout << "Error: retval is not success." << std::endl;
+        ret_error_support(retval);
+        free(temp_buf_n);
+        free(signature);
+        free(is_valid);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+
+    if (*is_valid == 1)
+    {
+        std::cout << "Signature is valid." << std::endl;
+    }
+    else
+    {
+        std::cout << "Signature is invalid." << std::endl;
+        free(temp_buf_n);
+        free(signature);
+        free(is_valid);
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
+    free(temp_buf_n);
+    free(signature);
+    free(is_valid);
+    sgx_destroy_enclave(eid_seal);
+    return true;
+}
+
 int main(int argc, char* argv[])
 {
     if (argc < 2)
@@ -729,7 +947,9 @@ int main(int argc, char* argv[])
         std::cout << "Commands:" << std::endl;
         std::cout << "  generate_key_and_seal [output_key_factor_path]" << std::endl;
         std::cout << "  encrypt [input_data_path] [key_factor_path] [output_encrypted_path]" << std::endl;
-        std::cout << "  decrypt [input_encrypted_path] [factor_p_path] [factor_q_path] [factor_dmp1_path] [factor_dmq1_path] [factor_iqmp_path] [output_decrypted_path]" << std::endl;
+        std::cout << "  decrypt [input_encrypted_path] [key_factor_path] [output_decrypted_path]" << std::endl;
+        std::cout << "  sign_data [input_data_path] [key_factor_path]" << std::endl;
+        std::cout << "  verify_signature [input_data_path] [key_factor_path]" << std::endl;
         return -1;
     }
 
@@ -764,6 +984,26 @@ int main(int argc, char* argv[])
             return 0;
         } else {
             std::cerr << "Failed to decrypt by rsa." << std::endl;
+            return -1;
+        }
+    } else if (command == "sign_data") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        if(sign_data(input_path, key_path)) {
+            std::cout << "Successfully signed data." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to sign data." << std::endl;
+            return -1;
+        }
+    } else if (command == "verify_signature") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        if(verify_signature(input_path, key_path)) {
+            std::cout << "Successfully verified signature." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to verify signature." << std::endl;
             return -1;
         }
     } else {

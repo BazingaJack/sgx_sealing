@@ -47,6 +47,7 @@ sgx_status_t generate_aes_key_and_seal(uint8_t* sealed_key, uint32_t sealed_key_
 }
 
 sgx_status_t generate_rsa_key_and_seal(unsigned char* p_n,
+                                       unsigned char* p_d,
                                        unsigned char* p_p,
                                        unsigned char* p_q,
                                        unsigned char* p_dmp1,
@@ -69,6 +70,7 @@ sgx_status_t generate_rsa_key_and_seal(unsigned char* p_n,
     }
 
     memcpy(p_n, n, RSA3072_KEY_SIZE);
+    memcpy(p_d, d, RSA3072_KEY_SIZE);
     memcpy(p_p, p, RSA3072_KEY_SIZE/2);
     memcpy(p_q, q, RSA3072_KEY_SIZE/2);
     memcpy(p_dmp1, dmp1, RSA3072_KEY_SIZE/2);
@@ -148,6 +150,65 @@ sgx_status_t decrypt_by_rsa_prikey(unsigned char* p_p,
     ret = sgx_create_rsa_priv2_key(MOD_SIZE, EXP_SIZE, e, p_p, p_q, p_dmp1, p_dmq1, p_iqmp, &prikey);
 
     ret = sgx_rsa_priv_decrypt_sha256(prikey, original_text, &original_text_len, (const unsigned char*)cipher_text, cipher_text_len);
+
+    return ret;
+}
+
+sgx_status_t sign_data_with_rsa(unsigned char* p_n,
+                                unsigned char* p_d,
+                                uint8_t* data, size_t data_len,
+                                uint8_t* signature)
+{
+    sgx_status_t ret = SGX_SUCCESS;
+    sgx_rsa3072_key_t prikey = {0};
+    unsigned char e[EXP_SIZE] = {0X01, 0X00, 0X01, 0X00};
+    
+    memcpy(prikey.mod, p_n, MOD_SIZE);
+    memcpy(prikey.d, p_d, MOD_SIZE);
+    memcpy(prikey.e, e, EXP_SIZE);
+
+    if (ret != SGX_SUCCESS) {
+        return ret;
+    }
+
+    sgx_rsa3072_signature_t signature_data = {0};
+
+    ret = sgx_rsa3072_sign(data, (uint32_t)data_len, &prikey, &signature_data);
+
+    memcpy(signature, signature_data, RSA3072_KEY_SIZE);
+
+    return ret;
+}
+
+sgx_status_t verify_signature_with_rsa(unsigned char* p_n,
+                                       uint8_t* data, size_t data_len,
+                                       uint8_t* signature,
+                                       uint8_t* is_valid)
+{
+    sgx_status_t ret = SGX_SUCCESS;
+    unsigned char e[EXP_SIZE] = {0X01, 0X00, 0X01, 0X00};
+    
+    sgx_rsa3072_public_key_t pubkey = {0};
+    memcpy(pubkey.mod, p_n, MOD_SIZE);
+    memcpy(pubkey.exp, e, EXP_SIZE);
+
+    if (ret != SGX_SUCCESS) {
+        return ret;
+    }
+
+    sgx_rsa3072_signature_t signature_data = {0};
+
+    memcpy(signature_data, signature, RSA3072_KEY_SIZE);
+
+    sgx_rsa_result_t ret_verify;
+    ret = sgx_rsa3072_verify(data, (uint32_t)data_len, &pubkey, &signature_data, &ret_verify);
+
+    if (ret != SGX_SUCCESS || ret_verify != SGX_RSA_VALID) {
+        *is_valid = 0;
+        return SGX_ERROR_UNEXPECTED;
+    }
+
+    *is_valid = 1;
 
     return ret;
 }

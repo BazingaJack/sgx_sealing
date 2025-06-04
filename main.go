@@ -158,6 +158,32 @@ func decryptFile(params ...string) error {
     return err
 }
 
+func signData(params ...string) error {
+	var args []string
+	// 按顺序解析参数：inputFile, keyFactorPath
+	if len(params) > 0 && params[0] != "" {
+		args = append(args, params[0]) // inputFile
+	}
+	if len(params) > 1 && params[1] != "" {
+		args = append(args, params[1]) // keyFactorPath
+	}
+	err := runCommand("sign_data", args...)
+	return err
+}
+
+func verifySignature(params ...string) error {
+	var args []string
+	// 按顺序解析参数：inputFile, keyFactorPath
+	if len(params) > 0 && params[0] != "" {
+		args = append(args, params[0]) // inputFile
+	}
+	if len(params) > 1 && params[1] != "" {
+		args = append(args, params[1]) // keyFactorPath
+	}
+	err := runCommand("verify_signature", args...)
+	return err
+}
+
 
 func ensureDirectories() error {
 	// 确保数据目录存在
@@ -212,4 +238,18 @@ func main() {
 		ErrorLogger.Printf("Failed to decrypt file: %v", err)
 	}
 	InfoLogger.Printf("File decrypted successfully!")
+
+	InfoLogger.Printf("4. Signing data from %s...\n", inputFileName)
+	if err := signData(); err != nil {
+		ErrorLogger.Printf("Failed to sign data: %v", err)
+	}
+	InfoLogger.Printf("Data signed successfully!")
+
+	InfoLogger.Printf("5. Verifying signature for %s...\n", inputFileName)
+	if err := verifySignature(); err != nil {
+		ErrorLogger.Printf("Failed to verify signature: %v", err)
+	} else {
+		InfoLogger.Printf("Signature verified successfully!")
+	}
+	InfoLogger.Printf("All operations completed successfully!")
 }
