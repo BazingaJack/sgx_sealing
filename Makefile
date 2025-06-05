@@ -52,7 +52,7 @@ else
 endif
 
 App_Cpp_Files := $(wildcard App/*.cpp)
-App_Include_Paths := -I$(SGX_SDK)/include
+App_Include_Paths := -I$(SGX_SDK)/include -I/usr/local/include
 
 App_Compile_CFlags := -fPIC -Wno-attributes $(App_Include_Paths)
 # Three configuration modes - Debug, prerelease, release
@@ -68,7 +68,7 @@ else
 endif
 
 App_Compile_CXXFlags := -std=c++0x $(App_Compile_CFlags)
-App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
+App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -L/usr/local/lib -lgmp
 
 Gen_Untrusted_Source_Seal := App/Enclave_Seal_u.c
 Gen_Untrusted_Object_Seal := App/Enclave_Seal_u.o
@@ -89,14 +89,15 @@ else
 endif
 Crypto_Library_Name := sgx_tcrypto
 
-Enclave_Include_Paths := -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
+Enclave_Include_Paths := -I/root/sgx-lib/include -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
+
 CC_BELOW_4_9 := $(shell expr "`$(CC) -dumpversion`" \< "4.9")
 ifeq ($(CC_BELOW_4_9), 1)
     Enclave_Compile_CFlags := -fstack-protector
 else
     Enclave_Compile_CFlags := -fstack-protector-strong
 endif
-Enclave_Compile_CFlags += -nostdinc -ffreestanding -fvisibility=hidden -fpie -ffunction-sections -fdata-sections $(Enclave_Include_Paths)
+Enclave_Compile_CFlags += -nostdinc -ffreestanding -fvisibility=hidden -fpie -ffunction-sections -fdata-sections $(Enclave_Include_Paths) -D_GMP_H_HAVE_FILE=0
 Enclave_Compile_CXXFlags := -nostdinc++ -std=c++11 $(Enclave_Compile_CFlags)
 
 # Enable the security flags
@@ -112,7 +113,9 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
 Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
-	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
+	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) \
+	-L/root/sgx-lib/lib -lgmp \
+	-Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined -Wl,-pie,-eenclave_entry \
 	-Wl,--export-dynamic -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections
 

@@ -7,6 +7,8 @@
 #include "string.h"
 #include "stdlib.h"
 
+#include "gmp.h"
+
 #define RSA3072_KEY_SIZE 384
 #define RSA3072_PUB_EXP_SIZE 4
 
