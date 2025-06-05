@@ -91,6 +91,15 @@ typedef struct ms_verify_signature_with_rsa_t {
 	uint8_t* ms_is_valid;
 } ms_verify_signature_with_rsa_t;
 
+typedef struct ms_forge_t {
+	uint8_t* ms_s;
+	uint8_t* ms_q;
+	uint8_t* ms_t;
+	uint8_t* ms_r;
+	uint8_t* ms_t_new;
+	uint8_t* ms_r_new;
+} ms_forge_t;
+
 typedef struct ms_ocall_print_string_t {
 	const char* ms_str;
 } ms_ocall_print_string_t;
@@ -335,6 +344,20 @@ sgx_status_t verify_signature_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retva
 	ms.ms_is_valid = is_valid;
 	status = sgx_ecall(eid, 9, &ocall_table_Enclave_Seal, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t forge(sgx_enclave_id_t eid, uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8_t* r_new)
+{
+	sgx_status_t status;
+	ms_forge_t ms;
+	ms.ms_s = s;
+	ms.ms_q = q;
+	ms.ms_t = t;
+	ms.ms_r = r;
+	ms.ms_t_new = t_new;
+	ms.ms_r_new = r_new;
+	status = sgx_ecall(eid, 10, &ocall_table_Enclave_Seal, &ms);
 	return status;
 }
 

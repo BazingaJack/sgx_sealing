@@ -14,6 +14,8 @@
 
 #include "sgx_tcrypto.h"
 
+#include "gmp.h"
+
 #define ENCLAVE_NAME_SEAL "libenclave_seal.signed.so"
 #define ENCLAVE_NAME_UNSEAL "libenclave_unseal.signed.so"
 #define ORIGIN_MAC_TEXT "origin_mac_text.txt"
@@ -937,6 +939,62 @@ static bool verify_signature(const char* input_data_path, const char* key_factor
     free(is_valid);
     sgx_destroy_enclave(eid_seal);
     return true;
+}
+
+static bool forge_calculate()
+{
+    sgx_enclave_id_t eid_seal = 0;
+    // Load the enclave for sealing
+    sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
+    if (ret != SGX_SUCCESS)
+    {
+        ret_error_support(ret);
+        return false;
+    }
+
+    mpz_t s, q, t, r, t_new, r_new;
+    mpz_inits(s, q, t, r, t_new, r_new, NULL);
+
+    uint8_t* s_mpz = (uint8_t*)malloc(32);
+    uint8_t* q_mpz = (uint8_t*)malloc(32);
+    uint8_t* t_mpz = (uint8_t*)malloc(32);
+    uint8_t* r_mpz = (uint8_t*)malloc(32);
+    uint8_t* t_new_mpz = (uint8_t*)malloc(32);
+    uint8_t* r_new_mpz = (uint8_t*)malloc(32);
+    
+
+    size_t written = 0;
+
+    mpz_export(s_mpz, &written, 1, 1, 0, 0, s);
+    mpz_export(q_mpz, &written, 1, 1, 0, 0, q);
+    mpz_export(t_mpz, &written, 1, 1, 0, 0, t);
+    mpz_export(r_mpz, &written, 1, 1, 0, 0, r);
+    mpz_export(t_new_mpz, &written, 1, 1, 0, 0, t_new);
+    mpz_export(r_new_mpz, &written, 1, 1, 0, 0, r_new);
+
+    // Forge
+    forge(eid_seal, s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz);
+    sgx_destroy_enclave(eid_seal);
+    return true;
+}
+
+void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
+{
+    mpz_t p, q, g, hash1, hash2;
+    mpz_inits(p, q, g, hash1, hash2, NULL);
+    
+    mpz_init_set_str(p, "0x1d1c29cd1834d6d7dfe2d37aeda5ef398e0a3502618be3f4033e4530abaa309f", 16);
+    mpz_init_set_str(q, "0xe8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f", 16);
+    mpz_init_set_str(g, "0x8acb9db88ef01d45402ec56e8ee0bc5c07c07b40d8ac8c0a45f8408242d266a", 16);
+
+    mpz_powm(hash1, g, t, p); // hash1 = g^t mod p
+    mpz_powm(hash2, r, q, p); // hash2 = r^q mod p
+
+    mpz_mul(*hash, hash1, hash2); // hash = hash1 * hash2
+    mpz_mod(*hash, *hash, p); // hash = hash mod p
+
+    mpz_clears(p, q, g, hash1, hash2, NULL);
+    return;
 }
 
 int main(int argc, char* argv[])

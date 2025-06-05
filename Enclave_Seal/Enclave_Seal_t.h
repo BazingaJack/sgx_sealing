@@ -25,6 +25,7 @@ sgx_status_t unseal_data(const uint8_t* sealed_blob, size_t data_size, uint8_t* 
 sgx_status_t decrypt_by_rsa_prikey(unsigned char* p_p, unsigned char* p_q, unsigned char* p_dmp1, unsigned char* p_dmq1, unsigned char* p_iqmp, uint8_t* p_data, size_t data_size, uint8_t* p_decrypt_data, size_t decrypt_data_size);
 sgx_status_t sign_data_with_rsa(unsigned char* p_n, unsigned char* p_d, uint8_t* p_data, size_t data_len, uint8_t* p_sig);
 sgx_status_t verify_signature_with_rsa(unsigned char* p_n, uint8_t* p_data, size_t data_len, uint8_t* p_sig, uint8_t* is_valid);
+void forge(uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8_t* r_new);
 
 sgx_status_t SGX_CDECL ocall_print_string(const char* str);
 sgx_status_t SGX_CDECL ocall_print_num(uint32_t* num);

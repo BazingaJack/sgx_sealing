@@ -7,7 +7,7 @@
 #include "string.h"
 #include "stdlib.h"
 
-#include "gmp.h"
+#include "sgx_tgmp.h"
 
 #define RSA3072_KEY_SIZE 384
 #define RSA3072_PUB_EXP_SIZE 4
@@ -213,4 +213,37 @@ sgx_status_t verify_signature_with_rsa(unsigned char* p_n,
     *is_valid = 1;
 
     return ret;
+}
+
+void forge(uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8_t* r_new)
+{
+    mpz_t s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz;
+    mpz_inits(s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz, NULL);
+    mpz_import(s_mpz, 32, 1, 1, 0, 0, s);
+    mpz_import(q_mpz, 32, 1, 1, 0, 0, q);
+    mpz_import(t_mpz, 32, 1, 1, 0, 0, t);
+    mpz_import(r_mpz, 32, 1, 1, 0, 0, r);
+    mpz_import(t_new_mpz, 32, 1, 1, 0, 0, t_new);
+    
+    mpz_t r_new1, r_new2;
+    mpz_inits(r_new1, r_new2, NULL);
+    mpz_mul(r_new1, s_mpz, r_mpz);
+    mpz_add(r_new1, r_new1, t_mpz);
+    mpz_sub(r_new1, r_new1, t_new_mpz);
+    if (!mpz_invert(r_new2, s_mpz, q_mpz)) {
+        ocall_print_string("Error: s is not invertible mod q!\n");
+        goto cleanup;
+    }
+    mpz_mul(r_new_mpz, r_new1, r_new2);
+    mpz_mod(r_new_mpz, r_new_mpz, q_mpz);
+    
+    size_t written;
+    mpz_export(r_new, &written, 1, 1, 0, 0, r_new_mpz);
+    if (written != 32) {
+        ocall_print_string("Error: r_new size is not 32 bytes!\n");
+        goto cleanup;
+    }
+cleanup:
+    mpz_clears(s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz, r_new1, r_new2, NULL);
+    return;
 }

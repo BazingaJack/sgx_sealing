@@ -40,6 +40,8 @@ enclave {
                                                       [in, size=data_len] uint8_t* p_data, size_t data_len,
                                                       [in, size=384] uint8_t* p_sig,
                                                       [out,size=1] uint8_t* is_valid);
+        public void forge([in,size=32] uint8_t* s,[in,size=32] uint8_t* q,[in,size=32] uint8_t* t,
+                          [in,size=32] uint8_t* r,[in,size=32] uint8_t* t_new,[out,size=32] uint8_t* r_new);
     };
 
     untrusted {

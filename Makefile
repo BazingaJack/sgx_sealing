@@ -89,7 +89,7 @@ else
 endif
 Crypto_Library_Name := sgx_tcrypto
 
-Enclave_Include_Paths := -I/root/sgx-lib/include -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
+Enclave_Include_Paths := -I/root/sgx-gmp-lib/include -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
 
 CC_BELOW_4_9 := $(shell expr "`$(CC) -dumpversion`" \< "4.9")
 ifeq ($(CC_BELOW_4_9), 1)
@@ -114,7 +114,7 @@ Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
 	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) \
-	-L/root/sgx-lib/lib -lgmp \
+	-L/root/sgx-gmp-lib/lib -lsgx_tgmp \
 	-Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined -Wl,-pie,-eenclave_entry \
 	-Wl,--export-dynamic -Wl,--defsym,__ImageBase=0 -Wl,--gc-sections
