@@ -55,7 +55,7 @@ typedef quote3_error_t(*sgx_ql_set_logging_callback_t)(sgx_ql_logging_callback_t
 
 #ifndef _MSC_VER
 
-#define SAMPLE_ISV_ENCLAVE "enclave.signed.so"
+#define SAMPLE_ISV_ENCLAVE "libenclave_seal.signed.so"
 #define DEFAULT_QUOTE "./quote.dat"
 
 #else
