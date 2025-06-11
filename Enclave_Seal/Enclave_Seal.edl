@@ -1,5 +1,7 @@
 enclave {
+    include "sgx_report.h"
     from "sgx_tstdc.edl" import *;
+    from "sgx_dcap_tvl.edl" import *;
 
     trusted {
         /* define ECALLs here. */
@@ -42,6 +44,9 @@ enclave {
                                                       [out,size=1] uint8_t* is_valid);
         public void forge([in,size=32] uint8_t* s,[in,size=32] uint8_t* q,[in,size=32] uint8_t* t,
                           [in,size=32] uint8_t* r,[in,size=32] uint8_t* t_new,[out,size=32] uint8_t* r_new);
+        public uint32_t enclave_create_report([in]const sgx_target_info_t* p_qe3_target,
+                                              [out]sgx_report_t* p_report);
+        public sgx_status_t ecall_get_target_info([out] sgx_target_info_t* target_info);
     };
 
     untrusted {

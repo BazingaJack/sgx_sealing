@@ -1,13 +1,18 @@
-#include "Enclave_Seal_t.h"
-#include "Enclave_Seal.h"
-
 #include "sgx_trts.h"
 #include "sgx_tseal.h"
 #include "stdio.h"
 #include "string.h"
 #include "stdlib.h"
+#include "stdarg.h"
 
 #include "sgx_tgmp.h"
+
+#include "sgx_error.h"
+#include "sgx_report.h"
+#include "sgx_utils.h"
+
+#include "Enclave_Seal_t.h"
+#include "Enclave_Seal.h"
 
 #define RSA3072_KEY_SIZE 384
 #define RSA3072_PUB_EXP_SIZE 4
@@ -246,4 +251,18 @@ void forge(uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8
 cleanup:
     mpz_clears(s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz, r_new1, r_new2, NULL);
     return;
+}
+
+uint32_t enclave_create_report(const sgx_target_info_t* p_qe3_target, sgx_report_t* p_report)
+{
+    sgx_report_data_t report_data = { 0 };
+
+    // Generate the report for the app_enclave
+    sgx_status_t  sgx_error = sgx_create_report(p_qe3_target, &report_data, p_report);
+
+    return sgx_error;
+}
+
+sgx_status_t ecall_get_target_info(sgx_target_info_t* target_info) {
+    return sgx_self_target(target_info);
 }

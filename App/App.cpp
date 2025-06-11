@@ -1,20 +1,30 @@
 // App.cpp : Define the entry point for the console application.
 //
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <fstream>
 #include <thread>
 #include <iostream>
+#include <vector>
 
 #include "sgx_urts.h"
-#include "Enclave_Seal_u.h"
-
+#include "sgx_report.h"
+#include "sgx_dcap_ql_wrapper.h"
+#include "sgx_quote_3.h"
+#include "sgx_pce.h"
+#include "sgx_ql_quote.h"
+#include "sgx_dcap_quoteverify.h"
 #include "ErrorSupport.h"
-
 #include "sgx_tcrypto.h"
 
 #include "gmp.h"
+
+#include "Enclave_Seal_u.h"
+
+using namespace std;
 
 #define ENCLAVE_NAME_SEAL "libenclave_seal.signed.so"
 #define ENCLAVE_NAME_UNSEAL "libenclave_unseal.signed.so"
@@ -40,6 +50,8 @@
 #define RSA_ENCRYPTED_DATA_FILE "rsa_encrypted_data.txt"
 #define RSA_DECRYPTED_DATA_FILE "rsa_decrypted_data.txt"
 #define RSA_SIGNATURE "rsa_signature.txt"
+
+#define log(msg, ...) printf("[APP] " msg "\n", ##__VA_ARGS__)
 
 void ocall_print_string(const char *str)
 {
@@ -993,6 +1005,218 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
     return;
 }
 
+// bool create_app_enclave_report(sgx_target_info_t &qe_target_info, sgx_report_t *app_report)
+// {
+//     bool ret = true;
+//     uint32_t retval = 0;
+//     sgx_status_t sgx_status = SGX_SUCCESS;
+//     sgx_enclave_id_t eid = 0;
+//     int launch_token_updated = 0;
+//     sgx_launch_token_t launch_token = { 0 };
+//     sgx_status = sgx_create_enclave(ENCLAVE_NAME_SEAL,
+//             SGX_DEBUG_FLAG,
+//             &launch_token,
+//             &launch_token_updated,
+//             &eid,
+//             NULL);
+//     if (SGX_SUCCESS != sgx_status) {
+//         printf("Error: call sgx_create_enclave fail, SGXError:%04x.\n", sgx_status);
+//         ret = false;
+//         goto CLEANUP;
+//     }
+//     sgx_status = enclave_create_report(eid,
+//             &retval,
+//             &qe_target_info,
+//             app_report);
+//     if ((SGX_SUCCESS != sgx_status) || (0 != retval)) {
+//         printf("Error: Call to get_app_enclave_report() failed\n");
+//         ret = false;
+//         goto CLEANUP;
+//     }
+// CLEANUP:
+//     sgx_destroy_enclave(eid);
+//     return ret;
+// }
+
+// bool generate_quote()
+// {
+//     int ret = 0;
+//     quote3_error_t qe3_ret = SGX_QL_SUCCESS;
+//     uint32_t quote_size = 0;
+//     uint8_t* p_quote_buffer = NULL;
+//     sgx_target_info_t qe_target_info = { 0 };
+//     sgx_report_t app_report = { 0 };
+//     FILE *fptr = NULL;
+//     // Set enclave load policy as persistent (in-proc mode only)
+//     qe3_ret = sgx_qe_set_enclave_load_policy(SGX_QL_PERSISTENT);
+//     if(SGX_QL_SUCCESS != qe3_ret) {
+//         printf("Error: set enclave load policy error: 0x%04x\n", qe3_ret);
+//         return -1;
+//     }
+//     // Set paths for PCE and QE3 (in-proc mode only)
+//     if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_pce.signed.so.1") ||
+//         SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_qe3.signed.so.1") ||
+//         SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_IDE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_id_enclave.signed.so.1")) {
+//         printf("Error: set PCE/QE3/IDE directory error.\n");
+//         return -1;
+//     }
+//     // Step 1: Get target info
+//     printf("Step1: Call sgx_qe_get_target_info:\n");
+//     qe3_ret = sgx_qe_get_target_info(&qe_target_info);
+//     if (SGX_QL_SUCCESS != qe3_ret) {
+//         printf("Error in sgx_qe_get_target_info. 0x%04x\n", qe3_ret);
+//         return -1;
+//     }
+//     printf("succeed!\n");
+//     // Step 2: Create enclave report
+//     printf("Step2: Call create_app_report\n");
+//     if(true != create_app_enclave_report(qe_target_info, &app_report)) {
+//         printf("Info: Call to create_app_report() failed\n");
+//         return -1;
+//     }
+//     // Step 3: Get quote size
+//     printf("Step3: Call sgx_qe_get_quote_size\n");
+//     qe3_ret = sgx_qe_get_quote_size(&quote_size);
+//     if (SGX_QL_SUCCESS != qe3_ret) {
+//         printf("Error: sgx_qe_get_quote_size error 0x%04x\n", qe3_ret);
+//         return -1;
+//     }
+//     // Allocate buffer for quote
+//     p_quote_buffer = (uint8_t*)malloc(quote_size);
+//     if (NULL == p_quote_buffer) {
+//         printf("Info: Couldn't allocate quote_buffer\n");
+//         return -1;
+//     }
+//     memset(p_quote_buffer, 0, quote_size);
+//     // Step 4: Get the quote
+//     printf("Step4: Call sgx_qe_get_quote\n");
+//     qe3_ret = sgx_qe_get_quote(&app_report,
+//         quote_size,
+//         p_quote_buffer);
+//     if (SGX_QL_SUCCESS != qe3_ret) {
+//         printf("Error: sgx_qe_get_quote got error 0x%04x\n", qe3_ret);
+//         ret = -1;
+//         goto CLEANUP;
+//     }
+//     // Save quote to file
+//     fptr = fopen("quote.dat","wb");
+//     if(fptr) {
+//         fwrite(p_quote_buffer, quote_size, 1, fptr);
+//         fclose(fptr);
+//     }
+//     // Clean up (in-proc mode only)
+//     printf("Info: Clean up the enclave load policy\n");
+//     qe3_ret = sgx_qe_cleanup_by_policy();
+//     if(SGX_QL_SUCCESS != qe3_ret) {
+//         printf("Error: cleanup enclave load policy with error 0x%04x\n", qe3_ret);
+//         ret = -1;
+//     }
+// CLEANUP:
+//     if (NULL != p_quote_buffer) {
+//         free(p_quote_buffer);
+//     }
+//     return ret;
+// }
+
+// vector<uint8_t> readBinaryContent(const string &filePath) {
+//     ifstream file(filePath, ios::binary);
+//     if (!file.is_open()) {
+//         log("Error: Unable to open quote file %s", filePath.c_str());
+//         return {};
+//     }
+//     file.seekg(0, ios_base::end);
+//     streampos fileSize = file.tellg();
+//     file.seekg(0, ios_base::beg);
+//     vector<uint8_t> retVal(fileSize);
+//     file.read(reinterpret_cast<char *>(retVal.data()), fileSize);
+//     file.close();
+//     return retVal;
+// }
+
+// int verify_quote(vector<uint8_t> quote) {
+//     int ret = 0;
+//     time_t current_time = 0;
+//     quote3_error_t dcap_ret = TEE_ERROR_UNEXPECTED;
+//     uint32_t collateral_expiration_status = 1;
+//     sgx_ql_qv_result_t quote_verification_result = TEE_QV_RESULT_UNSPECIFIED;
+    
+//     tee_supp_data_descriptor_t supp_data;
+//     memset(&supp_data, 0, sizeof(tee_supp_data_descriptor_t));
+//     // Get supplemental data version and size
+//     uint32_t version;
+//     dcap_ret = tee_get_supplemental_data_version_and_size(
+//         quote.data(),
+//         (uint32_t)quote.size(),
+//         &version,
+//         &supp_data.data_size);
+//     if (dcap_ret == TEE_SUCCESS && supp_data.data_size == sizeof(sgx_ql_qv_supplemental_t)) {
+//         supp_data.p_data = (uint8_t *)malloc(supp_data.data_size);
+//         if (supp_data.p_data != NULL) {
+//             memset(supp_data.p_data, 0, supp_data.data_size);
+//         } else {
+//             log("Error: Cannot allocate memory for supplemental data.");
+//             supp_data.data_size = 0;
+//         }
+//     } else {
+//         if (dcap_ret != TEE_SUCCESS)
+//             log("Error: tee_get_quote_supplemental_data_size failed: 0x%04x", dcap_ret);
+//         supp_data.data_size = 0;
+//     }
+//     // Set current time (use trusted time in production)
+//     current_time = time(NULL);
+//     // Perform quote verification (in-proc mode)
+//     dcap_ret = tee_verify_quote(
+//         quote.data(), 
+//         (uint32_t)quote.size(),
+//         NULL,
+//         current_time,
+//         &collateral_expiration_status,
+//         &quote_verification_result,
+//         NULL,  // NULL for in-proc mode
+//         &supp_data);
+//     if (dcap_ret != TEE_SUCCESS) {
+//         log("Error: App: tee_verify_quote failed: 0x%04x", dcap_ret);
+//         goto cleanup;
+//     }
+//     // Check verification result
+//     switch (quote_verification_result) {
+//         case TEE_QV_RESULT_OK:
+//             if (collateral_expiration_status == 0) {
+//                 log("Info: Verification completed successfully.");
+//                 ret = 0;
+//             } else {
+//                 log("Warning: Verification completed, but collateral is out of date.");
+//                 ret = 1;
+//             }
+//             break;
+//         case TEE_QV_RESULT_CONFIG_NEEDED:
+//         case TEE_QV_RESULT_OUT_OF_DATE:
+//             log("Warning: Verification completed with Non-terminal result: %x", quote_verification_result);
+//             ret = 1;
+//             break;
+//         case TEE_QV_RESULT_INVALID_SIGNATURE:
+//         case TEE_QV_RESULT_REVOKED:
+//         default:
+//             log("Error: Verification completed with Terminal result: %x", quote_verification_result);
+//             ret = -1;
+//             break;
+//     }
+//     // Check supplemental data if available
+//     if (dcap_ret == TEE_SUCCESS && supp_data.p_data != NULL && supp_data.data_size > 0) {
+//         sgx_ql_qv_supplemental_t *p = (sgx_ql_qv_supplemental_t *)supp_data.p_data;
+//         log("Info: Supplemental data Major Version: %d", p->major_version);
+//         log("Info: Supplemental data Minor Version: %d", p->minor_version);
+//         if (p->version > 3 && strlen(p->sa_list) > 0) {
+//             log("Info: Advisory ID: %s", p->sa_list);
+//         }
+//     }
+// cleanup:
+//     if (supp_data.p_data != NULL) {
+//         free(supp_data.p_data);
+//     }
+//     return ret;
+// }
+
 int main(int argc, char* argv[])
 {
     if (argc < 2)
@@ -1064,6 +1288,29 @@ int main(int argc, char* argv[])
         std::cerr << "Unknown command: " << command << std::endl;
         return -1;
     }
+
+    // if (generate_quote() != 0)
+    // {
+    //     std::cerr << "Failed to generate quote." << std::endl;
+    //     return -1;
+    // }
+    // std::cout << "Quote generated successfully." << std::endl;
+
+    // if (argc != 2) {
+    //     log("Usage: %s <quote_file>", argv[0]);
+    //     std::cout << "Please provide the path to the quote file." << std::endl;
+    //     return -1;
+    // }
+    // vector<uint8_t> quote = readBinaryContent(argv[1]);
+    // if (quote.empty()) {
+    //     std::cout << "Failed to read the quote file or the file is empty." << std::endl;
+    //     return -1;
+    // }
+
+    // if (verify_quote(quote) != 0) {
+    //     std::cout << "Quote verification failed." << std::endl;
+    //     return -1;
+    // }
 
     return 0;
 }

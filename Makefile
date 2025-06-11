@@ -45,6 +45,8 @@ SGX_COMMON_CXXFLAGS = $(SGX_COMMON_FLAGS) -Wnon-virtual-dtor -std=c++11
 
 ######## App Settings ########
 
+DCAP_Library_Name := sgx_dcap_ql
+
 ifneq ($(SGX_MODE), HW)
     Urts_Library_Name := sgx_urts_sim
 else
@@ -68,15 +70,18 @@ else
 endif
 
 App_Compile_CXXFlags := -std=c++0x $(App_Compile_CFlags)
-App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -L/usr/local/lib -lgmp
+App_Link_Flags := -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(DCAP_Library_Name) -lpthread -L/usr/local/lib -lgmp -lsgx_dcap_quoteverify
 
 Gen_Untrusted_Source_Seal := App/Enclave_Seal_u.c
 Gen_Untrusted_Object_Seal := App/Enclave_Seal_u.o
 
-App_Objects := $(Gen_Untrusted_Object_Seal) $(App_Cpp_Files:.cpp=.o)
+App_Objects := $(Gen_Untrusted_Object_Seal) App/App.o App/ErrorSupport.o
+App_Generate_Quote_Objects := $(Gen_Untrusted_Object_Seal) App/App_Generate_Quote.o
+App_Verify_Quote_Objects := $(Gen_Untrusted_Object_Seal) App/App_Verify_Quote.o
 
 App_Name := app
-
+App_Generate_Quote_Name := app_generate_quote
+App_Verify_Quote_Name := app_verify_quote
 
 ######## Enclave Settings ########
 
@@ -112,7 +117,7 @@ Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
 # Otherwise, you may get some undesirable errors.
 Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
-	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
+	-Wl,--whole-archive -lsgx_dcap_tvl -l$(Trts_Library_Name) -Wl,--no-whole-archive \
 	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -l$(Crypto_Library_Name) -l$(Service_Library_Name) \
 	-L/root/sgx-gmp-lib/lib -lsgx_tgmp \
 	-Wl,--end-group \
@@ -155,7 +160,7 @@ all: .config_$(Build_Mode)_$(SGX_ARCH)
 	@$(MAKE) target
 
 ifeq ($(Build_Mode), HW_RELEASE)
-target: $(App_Name) $(Enclave_Seal_Name)
+target: $(App_Name) $(App_Generate_Quote_Name) $(App_Verify_Quote_Name) $(Enclave_Seal_Name)
 	@echo "The project has been built in release hardware mode."
 	echo "Please sign the enclaves ($(Enclave_Seal_Name)) first with your signing key before you run the $(App_Name) to launch and access the enclaves."
 	@echo "To sign the enclaves use the command:"
@@ -163,7 +168,7 @@ target: $(App_Name) $(Enclave_Seal_Name)
 	@echo "You can also sign the enclave using an external signing tool."
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
 else
-target: $(App_Name) $(Signed_Enclave_Seal_Name)
+target: $(App_Name) $(App_Generate_Quote_Name) $(App_Verify_Quote_Name) $(Signed_Enclave_Seal_Name)
 ifeq ($(Build_Mode), HW_DEBUG)
 	@echo "The project has been built in debug hardware mode."
 else ifeq ($(Build_Mode), SIM_DEBUG)
@@ -178,7 +183,7 @@ endif
 endif
 
 .config_$(Build_Mode)_$(SGX_ARCH):
-	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
+	@rm -f .config_* $(App_Name) $(App_Objects) $(App_Generate_Quote_Name) $(App_Generate_Quote_Objects) $(App_Verify_Quote_Name) $(App_Verify_Quote_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
 	@rm -f $(Enclave_Seal_Objects) App/Enclave_Seal_u.* Enclave_Seal/Enclave_Seal_t.*
 	@touch .config_$(Build_Mode)_$(SGX_ARCH)
 
@@ -199,6 +204,18 @@ App/%.o: App/%.cpp
 $(App_Objects): $(Gen_Untrusted_Source_Seal)
 
 $(App_Name): $(App_Objects)
+	@$(CXX) $(SGX_COMMON_CXXFLAGS) $^ -o $@ $(App_Link_Flags)
+	@echo "LINK =>  $@"
+
+$(App_Generate_Quote_Objects): $(Gen_Untrusted_Source_Seal)
+
+$(App_Generate_Quote_Name): $(App_Generate_Quote_Objects)
+	@$(CXX) $(SGX_COMMON_CXXFLAGS) $^ -o $@ $(App_Link_Flags)
+	@echo "LINK =>  $@"
+
+$(App_Verify_Quote_Objects): $(Gen_Untrusted_Source_Seal)
+
+$(App_Verify_Quote_Name): $(App_Verify_Quote_Objects)
 	@$(CXX) $(SGX_COMMON_CXXFLAGS) $^ -o $@ $(App_Link_Flags)
 	@echo "LINK =>  $@"
 
@@ -236,5 +253,5 @@ endif
 
 
 clean:
-	@rm -f .config_* $(App_Name) $(App_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
+	@rm -f .config_* $(App_Name) $(App_Objects) $(App_Generate_Quote_Name) $(App_Generate_Quote_Objects) $(App_Verify_Quote_Name) $(App_Verify_Quote_Objects) $(Enclave_Seal_Name) $(Signed_Enclave_Seal_Name)
 	@rm -f $(Enclave_Seal_Objects) App/Enclave_Seal_u.* Enclave_Seal/Enclave_Seal_t.*

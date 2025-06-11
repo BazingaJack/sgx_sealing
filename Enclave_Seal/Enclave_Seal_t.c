@@ -126,6 +126,37 @@ typedef struct ms_forge_t {
 	uint8_t* ms_r_new;
 } ms_forge_t;
 
+typedef struct ms_enclave_create_report_t {
+	uint32_t ms_retval;
+	const sgx_target_info_t* ms_p_qe3_target;
+	sgx_report_t* ms_p_report;
+} ms_enclave_create_report_t;
+
+typedef struct ms_ecall_get_target_info_t {
+	sgx_status_t ms_retval;
+	sgx_target_info_t* ms_target_info;
+} ms_ecall_get_target_info_t;
+
+typedef struct ms_sgx_tvl_verify_qve_report_and_identity_t {
+	quote3_error_t ms_retval;
+	const uint8_t* ms_p_quote;
+	uint32_t ms_quote_size;
+	const sgx_ql_qe_report_info_t* ms_p_qve_report_info;
+	time_t ms_expiration_check_date;
+	uint32_t ms_collateral_expiration_status;
+	sgx_ql_qv_result_t ms_quote_verification_result;
+	const uint8_t* ms_p_supplemental_data;
+	uint32_t ms_supplemental_data_size;
+	sgx_isv_svn_t ms_qve_isvsvn_threshold;
+} ms_sgx_tvl_verify_qve_report_and_identity_t;
+
+typedef struct ms_tee_verify_qae_report_and_identity_t {
+	quote3_error_t ms_retval;
+	qae_verification_input_t* ms_input;
+	sgx_ql_qe_report_info_t ms_qae_report_info;
+	sgx_isv_svn_t ms_qae_isvsvn_threshold;
+} ms_tee_verify_qae_report_and_identity_t;
+
 typedef struct ms_ocall_print_string_t {
 	const char* ms_str;
 } ms_ocall_print_string_t;
@@ -1514,11 +1545,285 @@ err:
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_enclave_create_report(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_enclave_create_report_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_enclave_create_report_t* ms = SGX_CAST(ms_enclave_create_report_t*, pms);
+	ms_enclave_create_report_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_enclave_create_report_t), ms, sizeof(ms_enclave_create_report_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	const sgx_target_info_t* _tmp_p_qe3_target = __in_ms.ms_p_qe3_target;
+	size_t _len_p_qe3_target = sizeof(sgx_target_info_t);
+	sgx_target_info_t* _in_p_qe3_target = NULL;
+	sgx_report_t* _tmp_p_report = __in_ms.ms_p_report;
+	size_t _len_p_report = sizeof(sgx_report_t);
+	sgx_report_t* _in_p_report = NULL;
+	uint32_t _in_retval;
+
+	CHECK_UNIQUE_POINTER(_tmp_p_qe3_target, _len_p_qe3_target);
+	CHECK_UNIQUE_POINTER(_tmp_p_report, _len_p_report);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_p_qe3_target != NULL && _len_p_qe3_target != 0) {
+		_in_p_qe3_target = (sgx_target_info_t*)malloc(_len_p_qe3_target);
+		if (_in_p_qe3_target == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_p_qe3_target, _len_p_qe3_target, _tmp_p_qe3_target, _len_p_qe3_target)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_p_report != NULL && _len_p_report != 0) {
+		if ((_in_p_report = (sgx_report_t*)malloc(_len_p_report)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_p_report, 0, _len_p_report);
+	}
+	_in_retval = enclave_create_report((const sgx_target_info_t*)_in_p_qe3_target, _in_p_report);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+	if (_in_p_report) {
+		if (memcpy_verw_s(_tmp_p_report, _len_p_report, _in_p_report, _len_p_report)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_p_qe3_target) free(_in_p_qe3_target);
+	if (_in_p_report) free(_in_p_report);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_ecall_get_target_info(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_ecall_get_target_info_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_ecall_get_target_info_t* ms = SGX_CAST(ms_ecall_get_target_info_t*, pms);
+	ms_ecall_get_target_info_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_ecall_get_target_info_t), ms, sizeof(ms_ecall_get_target_info_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	sgx_target_info_t* _tmp_target_info = __in_ms.ms_target_info;
+	size_t _len_target_info = sizeof(sgx_target_info_t);
+	sgx_target_info_t* _in_target_info = NULL;
+	sgx_status_t _in_retval;
+
+	CHECK_UNIQUE_POINTER(_tmp_target_info, _len_target_info);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_target_info != NULL && _len_target_info != 0) {
+		if ((_in_target_info = (sgx_target_info_t*)malloc(_len_target_info)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_target_info, 0, _len_target_info);
+	}
+	_in_retval = ecall_get_target_info(_in_target_info);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+	if (_in_target_info) {
+		if (memcpy_verw_s(_tmp_target_info, _len_target_info, _in_target_info, _len_target_info)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_target_info) free(_in_target_info);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_sgx_tvl_verify_qve_report_and_identity(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_sgx_tvl_verify_qve_report_and_identity_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_sgx_tvl_verify_qve_report_and_identity_t* ms = SGX_CAST(ms_sgx_tvl_verify_qve_report_and_identity_t*, pms);
+	ms_sgx_tvl_verify_qve_report_and_identity_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_sgx_tvl_verify_qve_report_and_identity_t), ms, sizeof(ms_sgx_tvl_verify_qve_report_and_identity_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	const uint8_t* _tmp_p_quote = __in_ms.ms_p_quote;
+	uint32_t _tmp_quote_size = __in_ms.ms_quote_size;
+	size_t _len_p_quote = _tmp_quote_size;
+	uint8_t* _in_p_quote = NULL;
+	const sgx_ql_qe_report_info_t* _tmp_p_qve_report_info = __in_ms.ms_p_qve_report_info;
+	size_t _len_p_qve_report_info = 1 * sizeof(sgx_ql_qe_report_info_t);
+	sgx_ql_qe_report_info_t* _in_p_qve_report_info = NULL;
+	const uint8_t* _tmp_p_supplemental_data = __in_ms.ms_p_supplemental_data;
+	uint32_t _tmp_supplemental_data_size = __in_ms.ms_supplemental_data_size;
+	size_t _len_p_supplemental_data = _tmp_supplemental_data_size;
+	uint8_t* _in_p_supplemental_data = NULL;
+	quote3_error_t _in_retval;
+
+	if (sizeof(*_tmp_p_qve_report_info) != 0 &&
+		1 > (SIZE_MAX / sizeof(*_tmp_p_qve_report_info))) {
+		return SGX_ERROR_INVALID_PARAMETER;
+	}
+
+	CHECK_UNIQUE_POINTER(_tmp_p_quote, _len_p_quote);
+	CHECK_UNIQUE_POINTER(_tmp_p_qve_report_info, _len_p_qve_report_info);
+	CHECK_UNIQUE_POINTER(_tmp_p_supplemental_data, _len_p_supplemental_data);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_p_quote != NULL && _len_p_quote != 0) {
+		if ( _len_p_quote % sizeof(*_tmp_p_quote) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_p_quote = (uint8_t*)malloc(_len_p_quote);
+		if (_in_p_quote == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_p_quote, _len_p_quote, _tmp_p_quote, _len_p_quote)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_p_qve_report_info != NULL && _len_p_qve_report_info != 0) {
+		_in_p_qve_report_info = (sgx_ql_qe_report_info_t*)malloc(_len_p_qve_report_info);
+		if (_in_p_qve_report_info == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_p_qve_report_info, _len_p_qve_report_info, _tmp_p_qve_report_info, _len_p_qve_report_info)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_p_supplemental_data != NULL && _len_p_supplemental_data != 0) {
+		if ( _len_p_supplemental_data % sizeof(*_tmp_p_supplemental_data) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_p_supplemental_data = (uint8_t*)malloc(_len_p_supplemental_data);
+		if (_in_p_supplemental_data == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_p_supplemental_data, _len_p_supplemental_data, _tmp_p_supplemental_data, _len_p_supplemental_data)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	_in_retval = sgx_tvl_verify_qve_report_and_identity((const uint8_t*)_in_p_quote, _tmp_quote_size, (const sgx_ql_qe_report_info_t*)_in_p_qve_report_info, __in_ms.ms_expiration_check_date, __in_ms.ms_collateral_expiration_status, __in_ms.ms_quote_verification_result, (const uint8_t*)_in_p_supplemental_data, _tmp_supplemental_data_size, __in_ms.ms_qve_isvsvn_threshold);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+
+err:
+	if (_in_p_quote) free(_in_p_quote);
+	if (_in_p_qve_report_info) free(_in_p_qve_report_info);
+	if (_in_p_supplemental_data) free(_in_p_supplemental_data);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_tee_verify_qae_report_and_identity(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_tee_verify_qae_report_and_identity_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_tee_verify_qae_report_and_identity_t* ms = SGX_CAST(ms_tee_verify_qae_report_and_identity_t*, pms);
+	ms_tee_verify_qae_report_and_identity_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_tee_verify_qae_report_and_identity_t), ms, sizeof(ms_tee_verify_qae_report_and_identity_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	qae_verification_input_t* _tmp_input = __in_ms.ms_input;
+	size_t _len_input = 1 * sizeof(qae_verification_input_t);
+	qae_verification_input_t* _in_input = NULL;
+	quote3_error_t _in_retval;
+
+	if (sizeof(*_tmp_input) != 0 &&
+		1 > (SIZE_MAX / sizeof(*_tmp_input))) {
+		return SGX_ERROR_INVALID_PARAMETER;
+	}
+
+	CHECK_UNIQUE_POINTER(_tmp_input, _len_input);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_input != NULL && _len_input != 0) {
+		_in_input = (qae_verification_input_t*)malloc(_len_input);
+		if (_in_input == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_input, _len_input, _tmp_input, _len_input)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	_in_retval = tee_verify_qae_report_and_identity(_in_input, __in_ms.ms_qae_report_info, __in_ms.ms_qae_isvsvn_threshold);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+
+err:
+	if (_in_input) free(_in_input);
+	return status;
+}
+
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[11];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[15];
 } g_ecall_table = {
-	11,
+	15,
 	{
 		{(void*)(uintptr_t)sgx_get_sealed_data_size, 0, 0},
 		{(void*)(uintptr_t)sgx_seal_data, 0, 0},
@@ -1531,22 +1836,26 @@ SGX_EXTERNC const struct {
 		{(void*)(uintptr_t)sgx_sign_data_with_rsa, 0, 0},
 		{(void*)(uintptr_t)sgx_verify_signature_with_rsa, 0, 0},
 		{(void*)(uintptr_t)sgx_forge, 0, 0},
+		{(void*)(uintptr_t)sgx_enclave_create_report, 0, 0},
+		{(void*)(uintptr_t)sgx_ecall_get_target_info, 0, 0},
+		{(void*)(uintptr_t)sgx_sgx_tvl_verify_qve_report_and_identity, 0, 0},
+		{(void*)(uintptr_t)sgx_tee_verify_qae_report_and_identity, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[7][11];
+	uint8_t entry_table[7][15];
 } g_dyn_entry_table = {
 	7,
 	{
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 	}
 };
 
