@@ -1,5 +1,7 @@
 {
     "binary_path": "./app",
     "data_folder": "./test/data",
-    "key_factor_folder": "./test/key_factor"
+    "key_factor_folder": "./test/key_factor",
+    "generate_quote_path": "./app_generate_quote",
+    "verify_quote_path": "./app_verify_quote"
 }

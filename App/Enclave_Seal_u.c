@@ -111,6 +111,21 @@ typedef struct ms_ecall_get_target_info_t {
 	sgx_target_info_t* ms_target_info;
 } ms_ecall_get_target_info_t;
 
+typedef struct ms_generate_encrypt_and_report_t {
+	bool ms_retval;
+	unsigned char* ms_encrypted_p;
+	size_t ms_encrypted_p_len;
+	unsigned char* ms_encrypted_q;
+	size_t ms_encrypted_q_len;
+	unsigned char* ms_encrypted_dmp1;
+	size_t ms_encrypted_dmp1_len;
+	unsigned char* ms_encrypted_dmq1;
+	size_t ms_encrypted_dmq1_len;
+	unsigned char* ms_encrypted_iqmp;
+	size_t ms_encrypted_iqmp_len;
+	sgx_report_t* ms_p_report;
+} ms_generate_encrypt_and_report_t;
+
 typedef struct ms_sgx_tvl_verify_qve_report_and_identity_t {
 	quote3_error_t ms_retval;
 	const uint8_t* ms_p_quote;
@@ -413,6 +428,26 @@ sgx_status_t ecall_get_target_info(sgx_enclave_id_t eid, sgx_status_t* retval, s
 	return status;
 }
 
+sgx_status_t generate_encrypt_and_report(sgx_enclave_id_t eid, bool* retval, unsigned char* encrypted_p, size_t encrypted_p_len, unsigned char* encrypted_q, size_t encrypted_q_len, unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len, unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len, unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len, sgx_report_t* p_report)
+{
+	sgx_status_t status;
+	ms_generate_encrypt_and_report_t ms;
+	ms.ms_encrypted_p = encrypted_p;
+	ms.ms_encrypted_p_len = encrypted_p_len;
+	ms.ms_encrypted_q = encrypted_q;
+	ms.ms_encrypted_q_len = encrypted_q_len;
+	ms.ms_encrypted_dmp1 = encrypted_dmp1;
+	ms.ms_encrypted_dmp1_len = encrypted_dmp1_len;
+	ms.ms_encrypted_dmq1 = encrypted_dmq1;
+	ms.ms_encrypted_dmq1_len = encrypted_dmq1_len;
+	ms.ms_encrypted_iqmp = encrypted_iqmp;
+	ms.ms_encrypted_iqmp_len = encrypted_iqmp_len;
+	ms.ms_p_report = p_report;
+	status = sgx_ecall(eid, 13, &ocall_table_Enclave_Seal, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
 sgx_status_t sgx_tvl_verify_qve_report_and_identity(sgx_enclave_id_t eid, quote3_error_t* retval, const uint8_t* p_quote, uint32_t quote_size, const sgx_ql_qe_report_info_t* p_qve_report_info, time_t expiration_check_date, uint32_t collateral_expiration_status, sgx_ql_qv_result_t quote_verification_result, const uint8_t* p_supplemental_data, uint32_t supplemental_data_size, sgx_isv_svn_t qve_isvsvn_threshold)
 {
 	sgx_status_t status;
@@ -426,7 +461,7 @@ sgx_status_t sgx_tvl_verify_qve_report_and_identity(sgx_enclave_id_t eid, quote3
 	ms.ms_p_supplemental_data = p_supplemental_data;
 	ms.ms_supplemental_data_size = supplemental_data_size;
 	ms.ms_qve_isvsvn_threshold = qve_isvsvn_threshold;
-	status = sgx_ecall(eid, 13, &ocall_table_Enclave_Seal, &ms);
+	status = sgx_ecall(eid, 14, &ocall_table_Enclave_Seal, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
@@ -438,7 +473,7 @@ sgx_status_t tee_verify_qae_report_and_identity(sgx_enclave_id_t eid, quote3_err
 	ms.ms_input = input;
 	ms.ms_qae_report_info = qae_report_info;
 	ms.ms_qae_isvsvn_threshold = qae_isvsvn_threshold;
-	status = sgx_ecall(eid, 14, &ocall_table_Enclave_Seal, &ms);
+	status = sgx_ecall(eid, 15, &ocall_table_Enclave_Seal, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }

@@ -1005,75 +1005,174 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
     return;
 }
 
-// bool create_app_enclave_report(sgx_target_info_t &qe_target_info, sgx_report_t *app_report)
-// {
-//     bool ret = true;
-//     uint32_t retval = 0;
-//     sgx_status_t sgx_status = SGX_SUCCESS;
-//     sgx_enclave_id_t eid = 0;
-//     int launch_token_updated = 0;
-//     sgx_launch_token_t launch_token = { 0 };
-//     sgx_status = sgx_create_enclave(ENCLAVE_NAME_SEAL,
-//             SGX_DEBUG_FLAG,
-//             &launch_token,
-//             &launch_token_updated,
-//             &eid,
-//             NULL);
-//     if (SGX_SUCCESS != sgx_status) {
-//         printf("Error: call sgx_create_enclave fail, SGXError:%04x.\n", sgx_status);
-//         ret = false;
-//         goto CLEANUP;
-//     }
-//     sgx_status = enclave_create_report(eid,
-//             &retval,
-//             &qe_target_info,
-//             app_report);
-//     if ((SGX_SUCCESS != sgx_status) || (0 != retval)) {
-//         printf("Error: Call to get_app_enclave_report() failed\n");
-//         ret = false;
-//         goto CLEANUP;
-//     }
-// CLEANUP:
-//     sgx_destroy_enclave(eid);
-//     return ret;
-// }
+bool create_app_enclave_report(sgx_target_info_t &qe_target_info, sgx_report_t *app_report)
+{
+    bool ret = true;
+    uint32_t retval = 0;
+    sgx_status_t sgx_status = SGX_SUCCESS;
+    sgx_enclave_id_t eid = 0;
+    int launch_token_updated = 0;
+    sgx_launch_token_t launch_token = { 0 };
+    sgx_status = sgx_create_enclave(ENCLAVE_NAME_SEAL,
+            SGX_DEBUG_FLAG,
+            &launch_token,
+            &launch_token_updated,
+            &eid,
+            NULL);
+    if (SGX_SUCCESS != sgx_status) {
+        printf("Error: call sgx_create_enclave fail, SGXError:%04x.\n", sgx_status);
+        ret = false;
+        goto CLEANUP;
+    }
+    sgx_status = enclave_create_report(eid,
+            &retval,
+            &qe_target_info,
+            app_report);
+    if ((SGX_SUCCESS != sgx_status) || (0 != retval)) {
+        printf("Error: Call to get_app_enclave_report() failed\n");
+        ret = false;
+        goto CLEANUP;
+    }
+CLEANUP:
+    sgx_destroy_enclave(eid);
+    return ret;
+}
 
-// bool generate_quote()
-// {
-//     int ret = 0;
-//     quote3_error_t qe3_ret = SGX_QL_SUCCESS;
-//     uint32_t quote_size = 0;
-//     uint8_t* p_quote_buffer = NULL;
-//     sgx_target_info_t qe_target_info = { 0 };
-//     sgx_report_t app_report = { 0 };
-//     FILE *fptr = NULL;
-//     // Set enclave load policy as persistent (in-proc mode only)
-//     qe3_ret = sgx_qe_set_enclave_load_policy(SGX_QL_PERSISTENT);
-//     if(SGX_QL_SUCCESS != qe3_ret) {
-//         printf("Error: set enclave load policy error: 0x%04x\n", qe3_ret);
-//         return -1;
+bool generate_quote()
+{
+    int ret = 0;
+    quote3_error_t qe3_ret = SGX_QL_SUCCESS;
+    uint32_t quote_size = 0;
+    uint8_t* p_quote_buffer = NULL;
+    sgx_quote3_t *p_quote = NULL;
+    sgx_target_info_t qe_target_info = { 0 };
+    sgx_report_t app_report = { 0 };
+    FILE *fptr = NULL;
+    // Set enclave load policy as persistent (in-proc mode only)
+    qe3_ret = sgx_qe_set_enclave_load_policy(SGX_QL_PERSISTENT);
+    if(SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error: set enclave load policy error: 0x%04x\n", qe3_ret);
+        return -1;
+    }
+
+    // Step 1: Get target info
+    printf("Step1: Call sgx_qe_get_target_info:\n");
+    qe3_ret = sgx_qe_get_target_info(&qe_target_info);
+    if (SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error in sgx_qe_get_target_info. 0x%04x\n", qe3_ret);
+        return -1;
+    }
+    printf("succeed!\n");
+
+    // Step 2: Create enclave report
+    printf("Step2: Call create_app_report\n");
+    if(true != create_app_enclave_report(qe_target_info, &app_report)) {
+        printf("Info: Call to create_app_report() failed\n");
+        return -1;
+    }
+
+    fptr = fopen("report.dat","wb");
+    if( fptr ) {
+        fwrite(&app_report, sizeof(app_report), 1, fptr);
+        fclose(fptr);
+    }
+
+    // Step 3: Get quote size
+    printf("Step3: Call sgx_qe_get_quote_size\n");
+    qe3_ret = sgx_qe_get_quote_size(&quote_size);
+    if (SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error: sgx_qe_get_quote_size error 0x%04x\n", qe3_ret);
+        return -1;
+    }
+
+    // Allocate buffer for quote
+    p_quote_buffer = (uint8_t*)malloc(quote_size);
+    if (NULL == p_quote_buffer) {
+        printf("Info: Couldn't allocate quote_buffer\n");
+        return -1;
+    }
+    memset(p_quote_buffer, 0, quote_size);
+
+    // Step 4: Get the quote
+    printf("Step4: Call sgx_qe_get_quote\n");
+    qe3_ret = sgx_qe_get_quote(&app_report,
+        quote_size,
+        p_quote_buffer);
+    if (SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error: sgx_qe_get_quote got error 0x%04x\n", qe3_ret);
+        ret = -1;
+        goto CLEANUP;
+    }
+
+    p_quote = (sgx_quote3_t*)p_quote_buffer;
+
+    // Save quote to file
+    fptr = fopen("quote.dat","wb");
+    if(fptr) {
+        fwrite(p_quote, quote_size, 1, fptr);
+        fclose(fptr);
+    }
+
+    // Clean up (in-proc mode only)
+    printf("Info: Clean up the enclave load policy\n");
+    qe3_ret = sgx_qe_cleanup_by_policy();
+    if(SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error: cleanup enclave load policy with error 0x%04x\n", qe3_ret);
+        ret = -1;
+    }
+CLEANUP:
+    if (NULL != p_quote_buffer) {
+        free(p_quote_buffer);
+    }
+    return ret;
+}
+
+bool generate_encrypt_and_quote()
+{
+    bool retval;
+    quote3_error_t qe3_ret = SGX_QL_SUCCESS;
+    uint32_t quote_size = 0;
+    uint8_t* p_quote_buffer = NULL;
+    sgx_quote3_t *p_quote = NULL;
+    sgx_target_info_t qe_target_info = { 0 };
+    sgx_report_t app_report = { 0 };
+    FILE *fptr = NULL;
+
+    sgx_enclave_id_t eid_seal = 0;
+    // Load the enclave for sealing
+    sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
+    if (ret != SGX_SUCCESS)
+    {
+        ret_error_support(ret);
+        return false;
+    }
+
+    unsigned char* p = (unsigned char*)malloc(192);
+    unsigned char* q = (unsigned char*)malloc(192);
+    unsigned char* dmp1 = (unsigned char*)malloc(192);
+    unsigned char* dmq1 = (unsigned char*)malloc(192);
+    unsigned char* iqmp = (unsigned char*)malloc(192);
+    size_t encrypted_p_size, encrypted_q_size, encrypted_dmp1_size, encrypted_dmq1_size, encrypted_iqmp_size;
+
+    // Step 1: Generate,encrypt and create enclave report
+    printf("Step1: Generate,encrypt and create enclave report\n");
+    if(true != generate_encrypt_and_report(eid_seal,&retval,p,encrypted_p_size,
+                                           q,encrypted_q_size,
+                                           dmp1,encrypted_dmp1_size,
+                                           dmq1,encrypted_dmq1_size,
+                                           iqmp,encrypted_iqmp_size,
+                                           &app_report)) {
+        printf("Info: Call to generate_encrypt_and_report() failed\n");
+        return -1;
+    }
+    //TODO
+
+//     fptr = fopen("report.dat","wb");
+//     if( fptr ) {
+//         fwrite(&app_report, sizeof(app_report), 1, fptr);
+//         fclose(fptr);
 //     }
-//     // Set paths for PCE and QE3 (in-proc mode only)
-//     if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_pce.signed.so.1") ||
-//         SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_qe3.signed.so.1") ||
-//         SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_IDE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_id_enclave.signed.so.1")) {
-//         printf("Error: set PCE/QE3/IDE directory error.\n");
-//         return -1;
-//     }
-//     // Step 1: Get target info
-//     printf("Step1: Call sgx_qe_get_target_info:\n");
-//     qe3_ret = sgx_qe_get_target_info(&qe_target_info);
-//     if (SGX_QL_SUCCESS != qe3_ret) {
-//         printf("Error in sgx_qe_get_target_info. 0x%04x\n", qe3_ret);
-//         return -1;
-//     }
-//     printf("succeed!\n");
-//     // Step 2: Create enclave report
-//     printf("Step2: Call create_app_report\n");
-//     if(true != create_app_enclave_report(qe_target_info, &app_report)) {
-//         printf("Info: Call to create_app_report() failed\n");
-//         return -1;
-//     }
+
 //     // Step 3: Get quote size
 //     printf("Step3: Call sgx_qe_get_quote_size\n");
 //     qe3_ret = sgx_qe_get_quote_size(&quote_size);
@@ -1081,6 +1180,7 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
 //         printf("Error: sgx_qe_get_quote_size error 0x%04x\n", qe3_ret);
 //         return -1;
 //     }
+
 //     // Allocate buffer for quote
 //     p_quote_buffer = (uint8_t*)malloc(quote_size);
 //     if (NULL == p_quote_buffer) {
@@ -1088,6 +1188,7 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
 //         return -1;
 //     }
 //     memset(p_quote_buffer, 0, quote_size);
+
 //     // Step 4: Get the quote
 //     printf("Step4: Call sgx_qe_get_quote\n");
 //     qe3_ret = sgx_qe_get_quote(&app_report,
@@ -1098,12 +1199,16 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
 //         ret = -1;
 //         goto CLEANUP;
 //     }
+
+//     p_quote = (sgx_quote3_t*)p_quote_buffer;
+
 //     // Save quote to file
 //     fptr = fopen("quote.dat","wb");
 //     if(fptr) {
-//         fwrite(p_quote_buffer, quote_size, 1, fptr);
+//         fwrite(p_quote, quote_size, 1, fptr);
 //         fclose(fptr);
 //     }
+
 //     // Clean up (in-proc mode only)
 //     printf("Info: Clean up the enclave load policy\n");
 //     qe3_ret = sgx_qe_cleanup_by_policy();
@@ -1115,8 +1220,8 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
 //     if (NULL != p_quote_buffer) {
 //         free(p_quote_buffer);
 //     }
-//     return ret;
-// }
+    return ret;
+}
 
 // vector<uint8_t> readBinaryContent(const string &filePath) {
 //     ifstream file(filePath, ios::binary);
@@ -1219,82 +1324,82 @@ void get_hash(mpz_t h, mpz_t t, mpz_t r, mpz_t* hash)
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2)
-    {
-        std::cout << "Usage: " << argv[0] << " <command> [file paths]" << std::endl;
-        std::cout << "Commands:" << std::endl;
-        std::cout << "  generate_key_and_seal [output_key_factor_path]" << std::endl;
-        std::cout << "  encrypt [input_data_path] [key_factor_path] [output_encrypted_path]" << std::endl;
-        std::cout << "  decrypt [input_encrypted_path] [key_factor_path] [output_decrypted_path]" << std::endl;
-        std::cout << "  sign_data [input_data_path] [key_factor_path]" << std::endl;
-        std::cout << "  verify_signature [input_data_path] [key_factor_path]" << std::endl;
-        return -1;
-    }
-
-    std::string command = argv[1];
-
-    if(command == "generate_rsa_key") {
-        const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
-        if(generate_rsa_keypair_and_seal(key_factor_path)) {
-            std::cout << "Successfully generate rsa key." << std::endl;
-            return 0;
-        } else {
-            std::cerr << "Failed to generate rsa keypair." << std::endl;
-            return -1;
-        }
-    } else if (command == "encrypt") {
-        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-        const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
-        if(encrypt_by_rsa(input_path, key_path, output_path)) {
-            std::cout << "Successfully encrypt by rsa." << std::endl;
-            return 0;
-        } else {
-            std::cerr << "Failed to encrypt by rsa." << std::endl;
-            return -1;
-        }
-    } else if (command == "decrypt") {
-        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-        const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
-        if(decrypt_by_rsa(input_path, key_path, output_path)) {
-            std::cout << "Successfully decrypt by rsa." << std::endl;
-            return 0;
-        } else {
-            std::cerr << "Failed to decrypt by rsa." << std::endl;
-            return -1;
-        }
-    } else if (command == "sign_data") {
-        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-        if(sign_data(input_path, key_path)) {
-            std::cout << "Successfully signed data." << std::endl;
-            return 0;
-        } else {
-            std::cerr << "Failed to sign data." << std::endl;
-            return -1;
-        }
-    } else if (command == "verify_signature") {
-        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-        if(verify_signature(input_path, key_path)) {
-            std::cout << "Successfully verified signature." << std::endl;
-            return 0;
-        } else {
-            std::cerr << "Failed to verify signature." << std::endl;
-            return -1;
-        }
-    } else {
-        std::cerr << "Unknown command: " << command << std::endl;
-        return -1;
-    }
-
-    // if (generate_quote() != 0)
+    // if (argc < 2)
     // {
-    //     std::cerr << "Failed to generate quote." << std::endl;
+    //     std::cout << "Usage: " << argv[0] << " <command> [file paths]" << std::endl;
+    //     std::cout << "Commands:" << std::endl;
+    //     std::cout << "  generate_key_and_seal [output_key_factor_path]" << std::endl;
+    //     std::cout << "  encrypt [input_data_path] [key_factor_path] [output_encrypted_path]" << std::endl;
+    //     std::cout << "  decrypt [input_encrypted_path] [key_factor_path] [output_decrypted_path]" << std::endl;
+    //     std::cout << "  sign_data [input_data_path] [key_factor_path]" << std::endl;
+    //     std::cout << "  verify_signature [input_data_path] [key_factor_path]" << std::endl;
     //     return -1;
     // }
-    // std::cout << "Quote generated successfully." << std::endl;
+
+    // std::string command = argv[1];
+
+    // if(command == "generate_rsa_key") {
+    //     const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
+    //     if(generate_rsa_keypair_and_seal(key_factor_path)) {
+    //         std::cout << "Successfully generate rsa key." << std::endl;
+    //         return 0;
+    //     } else {
+    //         std::cerr << "Failed to generate rsa keypair." << std::endl;
+    //         return -1;
+    //     }
+    // } else if (command == "encrypt") {
+    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+    //     const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
+    //     if(encrypt_by_rsa(input_path, key_path, output_path)) {
+    //         std::cout << "Successfully encrypt by rsa." << std::endl;
+    //         return 0;
+    //     } else {
+    //         std::cerr << "Failed to encrypt by rsa." << std::endl;
+    //         return -1;
+    //     }
+    // } else if (command == "decrypt") {
+    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+    //     const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
+    //     if(decrypt_by_rsa(input_path, key_path, output_path)) {
+    //         std::cout << "Successfully decrypt by rsa." << std::endl;
+    //         return 0;
+    //     } else {
+    //         std::cerr << "Failed to decrypt by rsa." << std::endl;
+    //         return -1;
+    //     }
+    // } else if (command == "sign_data") {
+    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+    //     if(sign_data(input_path, key_path)) {
+    //         std::cout << "Successfully signed data." << std::endl;
+    //         return 0;
+    //     } else {
+    //         std::cerr << "Failed to sign data." << std::endl;
+    //         return -1;
+    //     }
+    // } else if (command == "verify_signature") {
+    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+    //     if(verify_signature(input_path, key_path)) {
+    //         std::cout << "Successfully verified signature." << std::endl;
+    //         return 0;
+    //     } else {
+    //         std::cerr << "Failed to verify signature." << std::endl;
+    //         return -1;
+    //     }
+    // } else {
+    //     std::cerr << "Unknown command: " << command << std::endl;
+    //     return -1;
+    // }
+
+    if (generate_quote() != 0)
+    {
+        std::cerr << "Failed to generate quote." << std::endl;
+        return -1;
+    }
+    std::cout << "Quote generated successfully." << std::endl;
 
     // if (argc != 2) {
     //     log("Usage: %s <quote_file>", argv[0]);

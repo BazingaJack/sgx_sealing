@@ -137,6 +137,21 @@ typedef struct ms_ecall_get_target_info_t {
 	sgx_target_info_t* ms_target_info;
 } ms_ecall_get_target_info_t;
 
+typedef struct ms_generate_encrypt_and_report_t {
+	bool ms_retval;
+	unsigned char* ms_encrypted_p;
+	size_t ms_encrypted_p_len;
+	unsigned char* ms_encrypted_q;
+	size_t ms_encrypted_q_len;
+	unsigned char* ms_encrypted_dmp1;
+	size_t ms_encrypted_dmp1_len;
+	unsigned char* ms_encrypted_dmq1;
+	size_t ms_encrypted_dmq1_len;
+	unsigned char* ms_encrypted_iqmp;
+	size_t ms_encrypted_iqmp_len;
+	sgx_report_t* ms_p_report;
+} ms_generate_encrypt_and_report_t;
+
 typedef struct ms_sgx_tvl_verify_qve_report_and_identity_t {
 	quote3_error_t ms_retval;
 	const uint8_t* ms_p_quote;
@@ -1663,6 +1678,181 @@ err:
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_generate_encrypt_and_report(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_generate_encrypt_and_report_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_generate_encrypt_and_report_t* ms = SGX_CAST(ms_generate_encrypt_and_report_t*, pms);
+	ms_generate_encrypt_and_report_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_generate_encrypt_and_report_t), ms, sizeof(ms_generate_encrypt_and_report_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	unsigned char* _tmp_encrypted_p = __in_ms.ms_encrypted_p;
+	size_t _tmp_encrypted_p_len = __in_ms.ms_encrypted_p_len;
+	size_t _len_encrypted_p = _tmp_encrypted_p_len;
+	unsigned char* _in_encrypted_p = NULL;
+	unsigned char* _tmp_encrypted_q = __in_ms.ms_encrypted_q;
+	size_t _tmp_encrypted_q_len = __in_ms.ms_encrypted_q_len;
+	size_t _len_encrypted_q = _tmp_encrypted_q_len;
+	unsigned char* _in_encrypted_q = NULL;
+	unsigned char* _tmp_encrypted_dmp1 = __in_ms.ms_encrypted_dmp1;
+	size_t _tmp_encrypted_dmp1_len = __in_ms.ms_encrypted_dmp1_len;
+	size_t _len_encrypted_dmp1 = _tmp_encrypted_dmp1_len;
+	unsigned char* _in_encrypted_dmp1 = NULL;
+	unsigned char* _tmp_encrypted_dmq1 = __in_ms.ms_encrypted_dmq1;
+	size_t _tmp_encrypted_dmq1_len = __in_ms.ms_encrypted_dmq1_len;
+	size_t _len_encrypted_dmq1 = _tmp_encrypted_dmq1_len;
+	unsigned char* _in_encrypted_dmq1 = NULL;
+	unsigned char* _tmp_encrypted_iqmp = __in_ms.ms_encrypted_iqmp;
+	size_t _tmp_encrypted_iqmp_len = __in_ms.ms_encrypted_iqmp_len;
+	size_t _len_encrypted_iqmp = _tmp_encrypted_iqmp_len;
+	unsigned char* _in_encrypted_iqmp = NULL;
+	sgx_report_t* _tmp_p_report = __in_ms.ms_p_report;
+	size_t _len_p_report = sizeof(sgx_report_t);
+	sgx_report_t* _in_p_report = NULL;
+	bool _in_retval;
+
+	CHECK_UNIQUE_POINTER(_tmp_encrypted_p, _len_encrypted_p);
+	CHECK_UNIQUE_POINTER(_tmp_encrypted_q, _len_encrypted_q);
+	CHECK_UNIQUE_POINTER(_tmp_encrypted_dmp1, _len_encrypted_dmp1);
+	CHECK_UNIQUE_POINTER(_tmp_encrypted_dmq1, _len_encrypted_dmq1);
+	CHECK_UNIQUE_POINTER(_tmp_encrypted_iqmp, _len_encrypted_iqmp);
+	CHECK_UNIQUE_POINTER(_tmp_p_report, _len_p_report);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_encrypted_p != NULL && _len_encrypted_p != 0) {
+		if ( _len_encrypted_p % sizeof(*_tmp_encrypted_p) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_encrypted_p = (unsigned char*)malloc(_len_encrypted_p)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_encrypted_p, 0, _len_encrypted_p);
+	}
+	if (_tmp_encrypted_q != NULL && _len_encrypted_q != 0) {
+		if ( _len_encrypted_q % sizeof(*_tmp_encrypted_q) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_encrypted_q = (unsigned char*)malloc(_len_encrypted_q)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_encrypted_q, 0, _len_encrypted_q);
+	}
+	if (_tmp_encrypted_dmp1 != NULL && _len_encrypted_dmp1 != 0) {
+		if ( _len_encrypted_dmp1 % sizeof(*_tmp_encrypted_dmp1) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_encrypted_dmp1 = (unsigned char*)malloc(_len_encrypted_dmp1)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_encrypted_dmp1, 0, _len_encrypted_dmp1);
+	}
+	if (_tmp_encrypted_dmq1 != NULL && _len_encrypted_dmq1 != 0) {
+		if ( _len_encrypted_dmq1 % sizeof(*_tmp_encrypted_dmq1) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_encrypted_dmq1 = (unsigned char*)malloc(_len_encrypted_dmq1)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_encrypted_dmq1, 0, _len_encrypted_dmq1);
+	}
+	if (_tmp_encrypted_iqmp != NULL && _len_encrypted_iqmp != 0) {
+		if ( _len_encrypted_iqmp % sizeof(*_tmp_encrypted_iqmp) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_encrypted_iqmp = (unsigned char*)malloc(_len_encrypted_iqmp)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_encrypted_iqmp, 0, _len_encrypted_iqmp);
+	}
+	if (_tmp_p_report != NULL && _len_p_report != 0) {
+		if ((_in_p_report = (sgx_report_t*)malloc(_len_p_report)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_p_report, 0, _len_p_report);
+	}
+	_in_retval = generate_encrypt_and_report(_in_encrypted_p, _tmp_encrypted_p_len, _in_encrypted_q, _tmp_encrypted_q_len, _in_encrypted_dmp1, _tmp_encrypted_dmp1_len, _in_encrypted_dmq1, _tmp_encrypted_dmq1_len, _in_encrypted_iqmp, _tmp_encrypted_iqmp_len, _in_p_report);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+	if (_in_encrypted_p) {
+		if (memcpy_verw_s(_tmp_encrypted_p, _len_encrypted_p, _in_encrypted_p, _len_encrypted_p)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_encrypted_q) {
+		if (memcpy_verw_s(_tmp_encrypted_q, _len_encrypted_q, _in_encrypted_q, _len_encrypted_q)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_encrypted_dmp1) {
+		if (memcpy_verw_s(_tmp_encrypted_dmp1, _len_encrypted_dmp1, _in_encrypted_dmp1, _len_encrypted_dmp1)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_encrypted_dmq1) {
+		if (memcpy_verw_s(_tmp_encrypted_dmq1, _len_encrypted_dmq1, _in_encrypted_dmq1, _len_encrypted_dmq1)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_encrypted_iqmp) {
+		if (memcpy_verw_s(_tmp_encrypted_iqmp, _len_encrypted_iqmp, _in_encrypted_iqmp, _len_encrypted_iqmp)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_p_report) {
+		if (memcpy_verw_s(_tmp_p_report, _len_p_report, _in_p_report, _len_p_report)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_encrypted_p) free(_in_encrypted_p);
+	if (_in_encrypted_q) free(_in_encrypted_q);
+	if (_in_encrypted_dmp1) free(_in_encrypted_dmp1);
+	if (_in_encrypted_dmq1) free(_in_encrypted_dmq1);
+	if (_in_encrypted_iqmp) free(_in_encrypted_iqmp);
+	if (_in_p_report) free(_in_p_report);
+	return status;
+}
+
 static sgx_status_t SGX_CDECL sgx_sgx_tvl_verify_qve_report_and_identity(void* pms)
 {
 	CHECK_REF_POINTER(pms, sizeof(ms_sgx_tvl_verify_qve_report_and_identity_t));
@@ -1821,9 +2011,9 @@ err:
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[15];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[16];
 } g_ecall_table = {
-	15,
+	16,
 	{
 		{(void*)(uintptr_t)sgx_get_sealed_data_size, 0, 0},
 		{(void*)(uintptr_t)sgx_seal_data, 0, 0},
@@ -1838,6 +2028,7 @@ SGX_EXTERNC const struct {
 		{(void*)(uintptr_t)sgx_forge, 0, 0},
 		{(void*)(uintptr_t)sgx_enclave_create_report, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_get_target_info, 0, 0},
+		{(void*)(uintptr_t)sgx_generate_encrypt_and_report, 0, 0},
 		{(void*)(uintptr_t)sgx_sgx_tvl_verify_qve_report_and_identity, 0, 0},
 		{(void*)(uintptr_t)sgx_tee_verify_qae_report_and_identity, 0, 0},
 	}
@@ -1845,17 +2036,17 @@ SGX_EXTERNC const struct {
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[7][15];
+	uint8_t entry_table[7][16];
 } g_dyn_entry_table = {
 	7,
 	{
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 	}
 };
 

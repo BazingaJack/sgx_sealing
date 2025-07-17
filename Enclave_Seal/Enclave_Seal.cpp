@@ -14,6 +14,12 @@
 #include "Enclave_Seal_t.h"
 #include "Enclave_Seal.h"
 
+#include "sgx_dcap_ql_wrapper.h"
+#include "sgx_quote_3.h"
+#include "sgx_pce.h"
+#include "sgx_ql_quote.h"
+#include "sgx_dcap_quoteverify.h"
+
 #define RSA3072_KEY_SIZE 384
 #define RSA3072_PUB_EXP_SIZE 4
 
@@ -96,6 +102,76 @@ sgx_status_t encrypt_by_rsa_pubkey(unsigned char* p_n, unsigned char* plain_text
     ret = sgx_rsa_pub_encrypt_sha256(pub_key, cipher_text, &cipher_text_len, (const unsigned char*)plain_text, plain_text_len);
 
     return ret;
+}
+
+bool generate_encrypt_and_report(unsigned char* encrypted_p, size_t encrypted_p_len,
+                                  unsigned char* encrypted_q, size_t encrypted_q_len,
+                                  unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len,
+                                  unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len,
+                                  unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len,
+                                  sgx_report_t* p_report)
+{
+    sgx_status_t ret = SGX_SUCCESS;
+    quote3_error_t qe3_ret = SGX_QL_SUCCESS;
+    unsigned char n[RSA3072_KEY_SIZE] = {0};
+    unsigned char d[RSA3072_KEY_SIZE] = {0};
+    unsigned char e[RSA3072_PUB_EXP_SIZE] = {0X01, 0X00, 0X01, 0X00};
+    unsigned char p[RSA3072_KEY_SIZE/2] = {0};
+    unsigned char q[RSA3072_KEY_SIZE/2] = {0};
+    unsigned char dmp1[RSA3072_KEY_SIZE/2] = {0};
+    unsigned char dmq1[RSA3072_KEY_SIZE/2] = {0};
+    unsigned char iqmp[RSA3072_KEY_SIZE/2] = {0};
+
+    ret = sgx_create_rsa_key_pair(RSA3072_KEY_SIZE, RSA3072_PUB_EXP_SIZE, n, d, e, p, q, dmp1, dmq1, iqmp);
+    if (ret != SGX_SUCCESS) {
+        return false;
+    }
+
+    void* pub_key;
+    ret = sgx_create_rsa_pub1_key(MOD_SIZE, EXP_SIZE, n, e, &pub_key);
+    if (ret != SGX_SUCCESS) {
+        return false;
+    }
+
+    ret = sgx_rsa_pub_encrypt_sha256(pub_key, encrypted_p, &encrypted_p_len, p, RSA3072_KEY_SIZE/2);
+    ret = sgx_rsa_pub_encrypt_sha256(pub_key, encrypted_q, &encrypted_q_len, q, RSA3072_KEY_SIZE/2);
+    ret = sgx_rsa_pub_encrypt_sha256(pub_key, encrypted_dmp1, &encrypted_dmp1_len, dmp1, RSA3072_KEY_SIZE/2);
+    ret = sgx_rsa_pub_encrypt_sha256(pub_key, encrypted_dmq1, &encrypted_dmq1_len, dmq1, RSA3072_KEY_SIZE/2);
+    ret = sgx_rsa_pub_encrypt_sha256(pub_key, encrypted_iqmp, &encrypted_iqmp_len, iqmp, RSA3072_KEY_SIZE/2);
+    if (ret != SGX_SUCCESS) {
+        return false;
+    }
+
+    sgx_target_info_t qe_target_info = { 0 };
+    sgx_report_data_t report_data = { 1 };
+    sgx_report_t* p_report_temp = (sgx_report_t *)malloc(sizeof(sgx_report_t));
+
+    ret = sgx_create_report(&qe_target_info, &report_data, p_report_temp);
+    if (ret != SGX_SUCCESS) {
+        return false;
+    }
+
+    memcpy(p_report_temp, p_report, sizeof(sgx_report_t));
+
+    // uint32_t quote_size = 0;
+    // uint8_t* p_quote_buffer = NULL;
+    // qe3_ret = sgx_qe_get_quote_size(&quote_size);
+    // if (qe3_ret != SGX_QL_SUCCESS) {
+    //     return;
+    // }
+
+    // p_quote_buffer = (uint8_t*)malloc(quote_size);
+    // memset(p_quote_buffer, 0, quote_size);
+    // qe3_ret = sgx_qe_get_quote(p_report,quote_size,p_quote_buffer);
+    // if (qe3_ret != SGX_QL_SUCCESS) {
+    //     return;
+    // }
+
+    // sgx_quote3_t *p_quote_temp = NULL;
+    // p_quote_temp = (sgx_quote3_t*)p_quote_buffer;
+    // memcpy(p_quote, p_quote_temp, sizeof(sgx_quote3_t));
+
+    return true;
 }
 
 void get_unsealed_data_size(const uint8_t *sealed_blob, size_t data_size, uint32_t *p_mac_text_len, uint32_t *p_decrypt_data_len)

@@ -1,5 +1,6 @@
 enclave {
     include "sgx_report.h"
+    include "stdbool.h"
     from "sgx_tstdc.edl" import *;
     from "sgx_dcap_tvl.edl" import *;
 
@@ -47,6 +48,12 @@ enclave {
         public uint32_t enclave_create_report([in]const sgx_target_info_t* p_qe3_target,
                                               [out]sgx_report_t* p_report);
         public sgx_status_t ecall_get_target_info([out] sgx_target_info_t* target_info);
+        public bool generate_encrypt_and_report([out,size=encrypted_p_len] unsigned char* encrypted_p, size_t encrypted_p_len,
+                                                [out,size=encrypted_q_len] unsigned char* encrypted_q, size_t encrypted_q_len,
+                                                [out,size=encrypted_dmp1_len] unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len,
+                                                [out,size=encrypted_dmq1_len] unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len,
+                                                [out,size=encrypted_iqmp_len] unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len,
+                                                [out]sgx_report_t* p_report);
     };
 
     untrusted {
