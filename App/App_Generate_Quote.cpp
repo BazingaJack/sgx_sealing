@@ -105,6 +105,11 @@ void ocall_print_num(uint32_t *num)
     std::cout << *num << std::endl;
 }
 
+void ocall_print_mpz(mpz_t *num)
+{
+    gmp_printf("%Zd\n", *num);
+}
+
 bool create_app_enclave_report(sgx_target_info_t &qe_target_info, sgx_report_t *app_report)
 
 {

@@ -104,12 +104,13 @@ sgx_status_t encrypt_by_rsa_pubkey(unsigned char* p_n, unsigned char* plain_text
     return ret;
 }
 
-bool generate_encrypt_and_report(unsigned char* encrypted_p, size_t encrypted_p_len,
-                                  unsigned char* encrypted_q, size_t encrypted_q_len,
-                                  unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len,
-                                  unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len,
-                                  unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len,
-                                  sgx_report_t* p_report)
+bool generate_encrypt_and_report(sgx_target_info_t* p_qe_target_info,
+                                 unsigned char* encrypted_p, size_t encrypted_p_len,
+                                 unsigned char* encrypted_q, size_t encrypted_q_len,
+                                 unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len,
+                                 unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len,
+                                 unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len,
+                                 sgx_report_t* p_report)
 {
     sgx_status_t ret = SGX_SUCCESS;
     quote3_error_t qe3_ret = SGX_QL_SUCCESS;
@@ -142,16 +143,15 @@ bool generate_encrypt_and_report(unsigned char* encrypted_p, size_t encrypted_p_
         return false;
     }
 
-    sgx_target_info_t qe_target_info = { 0 };
-    sgx_report_data_t report_data = { 1 };
+    sgx_report_data_t report_data = { 0 };
     sgx_report_t* p_report_temp = (sgx_report_t *)malloc(sizeof(sgx_report_t));
 
-    ret = sgx_create_report(&qe_target_info, &report_data, p_report_temp);
+    ret = sgx_create_report(p_qe_target_info, &report_data, p_report_temp);
     if (ret != SGX_SUCCESS) {
         return false;
     }
 
-    memcpy(p_report_temp, p_report, sizeof(sgx_report_t));
+    memcpy(p_report, p_report_temp, sizeof(sgx_report_t));
 
     // uint32_t quote_size = 0;
     // uint8_t* p_quote_buffer = NULL;
@@ -296,36 +296,35 @@ sgx_status_t verify_signature_with_rsa(unsigned char* p_n,
     return ret;
 }
 
-void forge(uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8_t* r_new)
+void forge(mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new)
 {
-    mpz_t s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz;
-    mpz_inits(s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz, NULL);
-    mpz_import(s_mpz, 32, 1, 1, 0, 0, s);
-    mpz_import(q_mpz, 32, 1, 1, 0, 0, q);
-    mpz_import(t_mpz, 32, 1, 1, 0, 0, t);
-    mpz_import(r_mpz, 32, 1, 1, 0, 0, r);
-    mpz_import(t_new_mpz, 32, 1, 1, 0, 0, t_new);
-    
-    mpz_t r_new1, r_new2;
-    mpz_inits(r_new1, r_new2, NULL);
-    mpz_mul(r_new1, s_mpz, r_mpz);
-    mpz_add(r_new1, r_new1, t_mpz);
-    mpz_sub(r_new1, r_new1, t_new_mpz);
-    if (!mpz_invert(r_new2, s_mpz, q_mpz)) {
+    ocall_print_mpz(s);
+    ocall_print_mpz(q);
+    ocall_print_mpz(t);
+    ocall_print_mpz(r);
+    ocall_print_mpz(t_new);
+    ocall_print_mpz(r_new);
+
+    mpz_t temp1, temp2, temp3, temp4, temp5, temp6;
+    mpz_inits(temp1, temp2, temp3, temp4, temp5, temp6, NULL);
+    mpz_mul(temp1, *s, *r);
+    ocall_print_mpz(&temp1);
+    mpz_add(temp2, temp1, *t);
+    ocall_print_mpz(&temp2);
+    mpz_sub(temp3, temp2, *t_new);
+    ocall_print_mpz(&temp3);
+    if (!mpz_invert(temp4, *s, *q)) {
         ocall_print_string("Error: s is not invertible mod q!\n");
         goto cleanup;
     }
-    mpz_mul(r_new_mpz, r_new1, r_new2);
-    mpz_mod(r_new_mpz, r_new_mpz, q_mpz);
-    
-    size_t written;
-    mpz_export(r_new, &written, 1, 1, 0, 0, r_new_mpz);
-    if (written != 32) {
-        ocall_print_string("Error: r_new size is not 32 bytes!\n");
-        goto cleanup;
-    }
+    mpz_mul(temp5, temp3, temp4);
+    mpz_mod(temp6, temp5, *q);
+
+    ocall_print_mpz(&temp6);
+
 cleanup:
-    mpz_clears(s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz, r_new1, r_new2, NULL);
+    mpz_clears(temp1, temp2, temp3, temp4, temp5, temp6, NULL);
+
     return;
 }
 

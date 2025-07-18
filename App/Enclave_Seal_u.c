@@ -92,12 +92,12 @@ typedef struct ms_verify_signature_with_rsa_t {
 } ms_verify_signature_with_rsa_t;
 
 typedef struct ms_forge_t {
-	uint8_t* ms_s;
-	uint8_t* ms_q;
-	uint8_t* ms_t;
-	uint8_t* ms_r;
-	uint8_t* ms_t_new;
-	uint8_t* ms_r_new;
+	mpz_t* ms_s;
+	mpz_t* ms_q;
+	mpz_t* ms_t;
+	mpz_t* ms_r;
+	mpz_t* ms_t_new;
+	mpz_t* ms_r_new;
 } ms_forge_t;
 
 typedef struct ms_enclave_create_report_t {
@@ -113,6 +113,7 @@ typedef struct ms_ecall_get_target_info_t {
 
 typedef struct ms_generate_encrypt_and_report_t {
 	bool ms_retval;
+	sgx_target_info_t* ms_p_qe_target_info;
 	unsigned char* ms_encrypted_p;
 	size_t ms_encrypted_p_len;
 	unsigned char* ms_encrypted_q;
@@ -154,6 +155,10 @@ typedef struct ms_ocall_print_num_t {
 	uint32_t* ms_num;
 } ms_ocall_print_num_t;
 
+typedef struct ms_ocall_print_mpz_t {
+	mpz_t* ms_num;
+} ms_ocall_print_mpz_t;
+
 typedef struct ms_sgx_oc_cpuidex_t {
 	int* ms_cpuinfo;
 	int ms_leaf;
@@ -194,6 +199,14 @@ static sgx_status_t SGX_CDECL Enclave_Seal_ocall_print_num(void* pms)
 {
 	ms_ocall_print_num_t* ms = SGX_CAST(ms_ocall_print_num_t*, pms);
 	ocall_print_num(ms->ms_num);
+
+	return SGX_SUCCESS;
+}
+
+static sgx_status_t SGX_CDECL Enclave_Seal_ocall_print_mpz(void* pms)
+{
+	ms_ocall_print_mpz_t* ms = SGX_CAST(ms_ocall_print_mpz_t*, pms);
+	ocall_print_mpz(ms->ms_num);
 
 	return SGX_SUCCESS;
 }
@@ -240,12 +253,13 @@ static sgx_status_t SGX_CDECL Enclave_Seal_sgx_thread_set_multiple_untrusted_eve
 
 static const struct {
 	size_t nr_ocall;
-	void * table[7];
+	void * table[8];
 } ocall_table_Enclave_Seal = {
-	7,
+	8,
 	{
 		(void*)Enclave_Seal_ocall_print_string,
 		(void*)Enclave_Seal_ocall_print_num,
+		(void*)Enclave_Seal_ocall_print_mpz,
 		(void*)Enclave_Seal_sgx_oc_cpuidex,
 		(void*)Enclave_Seal_sgx_thread_wait_untrusted_event_ocall,
 		(void*)Enclave_Seal_sgx_thread_set_untrusted_event_ocall,
@@ -393,7 +407,7 @@ sgx_status_t verify_signature_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retva
 	return status;
 }
 
-sgx_status_t forge(sgx_enclave_id_t eid, uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8_t* r_new)
+sgx_status_t forge(sgx_enclave_id_t eid, mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new)
 {
 	sgx_status_t status;
 	ms_forge_t ms;
@@ -428,10 +442,11 @@ sgx_status_t ecall_get_target_info(sgx_enclave_id_t eid, sgx_status_t* retval, s
 	return status;
 }
 
-sgx_status_t generate_encrypt_and_report(sgx_enclave_id_t eid, bool* retval, unsigned char* encrypted_p, size_t encrypted_p_len, unsigned char* encrypted_q, size_t encrypted_q_len, unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len, unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len, unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len, sgx_report_t* p_report)
+sgx_status_t generate_encrypt_and_report(sgx_enclave_id_t eid, bool* retval, sgx_target_info_t* p_qe_target_info, unsigned char* encrypted_p, size_t encrypted_p_len, unsigned char* encrypted_q, size_t encrypted_q_len, unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len, unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len, unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len, sgx_report_t* p_report)
 {
 	sgx_status_t status;
 	ms_generate_encrypt_and_report_t ms;
+	ms.ms_p_qe_target_info = p_qe_target_info;
 	ms.ms_encrypted_p = encrypted_p;
 	ms.ms_encrypted_p_len = encrypted_p_len;
 	ms.ms_encrypted_q = encrypted_q;

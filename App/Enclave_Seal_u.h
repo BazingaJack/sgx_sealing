@@ -9,6 +9,7 @@
 
 #include "sgx_report.h"
 #include "stdbool.h"
+#include "/root/sgx-gmp-lib/include/sgx_tgmp.h"
 #include "sgx_qve_header.h"
 #include "sgx_ql_quote.h"
 #include "sgx_dcap_qal.h"
@@ -29,6 +30,10 @@ void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_print_string, (const char* str));
 #ifndef OCALL_PRINT_NUM_DEFINED__
 #define OCALL_PRINT_NUM_DEFINED__
 void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_print_num, (uint32_t* num));
+#endif
+#ifndef OCALL_PRINT_MPZ_DEFINED__
+#define OCALL_PRINT_MPZ_DEFINED__
+void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_print_mpz, (mpz_t* num));
 #endif
 #ifndef SGX_OC_CPUIDEX_DEFINED__
 #define SGX_OC_CPUIDEX_DEFINED__
@@ -61,10 +66,10 @@ sgx_status_t unseal_data(sgx_enclave_id_t eid, sgx_status_t* retval, const uint8
 sgx_status_t decrypt_by_rsa_prikey(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_p, unsigned char* p_q, unsigned char* p_dmp1, unsigned char* p_dmq1, unsigned char* p_iqmp, uint8_t* p_data, size_t data_size, uint8_t* p_decrypt_data, size_t decrypt_data_size);
 sgx_status_t sign_data_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, unsigned char* p_d, uint8_t* p_data, size_t data_len, uint8_t* p_sig);
 sgx_status_t verify_signature_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, uint8_t* p_data, size_t data_len, uint8_t* p_sig, uint8_t* is_valid);
-sgx_status_t forge(sgx_enclave_id_t eid, uint8_t* s, uint8_t* q, uint8_t* t, uint8_t* r, uint8_t* t_new, uint8_t* r_new);
+sgx_status_t forge(sgx_enclave_id_t eid, mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new);
 sgx_status_t enclave_create_report(sgx_enclave_id_t eid, uint32_t* retval, const sgx_target_info_t* p_qe3_target, sgx_report_t* p_report);
 sgx_status_t ecall_get_target_info(sgx_enclave_id_t eid, sgx_status_t* retval, sgx_target_info_t* target_info);
-sgx_status_t generate_encrypt_and_report(sgx_enclave_id_t eid, bool* retval, unsigned char* encrypted_p, size_t encrypted_p_len, unsigned char* encrypted_q, size_t encrypted_q_len, unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len, unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len, unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len, sgx_report_t* p_report);
+sgx_status_t generate_encrypt_and_report(sgx_enclave_id_t eid, bool* retval, sgx_target_info_t* p_qe_target_info, unsigned char* encrypted_p, size_t encrypted_p_len, unsigned char* encrypted_q, size_t encrypted_q_len, unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len, unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len, unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len, sgx_report_t* p_report);
 sgx_status_t sgx_tvl_verify_qve_report_and_identity(sgx_enclave_id_t eid, quote3_error_t* retval, const uint8_t* p_quote, uint32_t quote_size, const sgx_ql_qe_report_info_t* p_qve_report_info, time_t expiration_check_date, uint32_t collateral_expiration_status, sgx_ql_qv_result_t quote_verification_result, const uint8_t* p_supplemental_data, uint32_t supplemental_data_size, sgx_isv_svn_t qve_isvsvn_threshold);
 sgx_status_t tee_verify_qae_report_and_identity(sgx_enclave_id_t eid, quote3_error_t* retval, qae_verification_input_t* input, sgx_ql_qe_report_info_t qae_report_info, sgx_isv_svn_t qae_isvsvn_threshold);
 

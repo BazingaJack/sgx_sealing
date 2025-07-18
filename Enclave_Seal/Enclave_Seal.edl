@@ -1,6 +1,7 @@
 enclave {
     include "sgx_report.h"
     include "stdbool.h"
+    include "/root/sgx-gmp-lib/include/sgx_tgmp.h"
     from "sgx_tstdc.edl" import *;
     from "sgx_dcap_tvl.edl" import *;
 
@@ -43,12 +44,13 @@ enclave {
                                                       [in, size=data_len] uint8_t* p_data, size_t data_len,
                                                       [in, size=384] uint8_t* p_sig,
                                                       [out,size=1] uint8_t* is_valid);
-        public void forge([in,size=32] uint8_t* s,[in,size=32] uint8_t* q,[in,size=32] uint8_t* t,
-                          [in,size=32] uint8_t* r,[in,size=32] uint8_t* t_new,[out,size=32] uint8_t* r_new);
+        public void forge([in] mpz_t* s,[in] mpz_t* q,[in] mpz_t* t,
+                          [in] mpz_t* r,[in] mpz_t* t_new,[out] mpz_t* r_new);
         public uint32_t enclave_create_report([in]const sgx_target_info_t* p_qe3_target,
                                               [out]sgx_report_t* p_report);
         public sgx_status_t ecall_get_target_info([out] sgx_target_info_t* target_info);
-        public bool generate_encrypt_and_report([out,size=encrypted_p_len] unsigned char* encrypted_p, size_t encrypted_p_len,
+        public bool generate_encrypt_and_report([in]sgx_target_info_t* p_qe_target_info,
+                                                [out,size=encrypted_p_len] unsigned char* encrypted_p, size_t encrypted_p_len,
                                                 [out,size=encrypted_q_len] unsigned char* encrypted_q, size_t encrypted_q_len,
                                                 [out,size=encrypted_dmp1_len] unsigned char* encrypted_dmp1, size_t encrypted_dmp1_len,
                                                 [out,size=encrypted_dmq1_len] unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len,
@@ -60,5 +62,6 @@ enclave {
         /* define OCALLs here. */
         void ocall_print_string([in, string] const char* str);
         void ocall_print_num([in] uint32_t* num);
+        void ocall_print_mpz([in] mpz_t* num);
     };
 };

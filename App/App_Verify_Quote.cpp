@@ -100,6 +100,11 @@ void ocall_print_num(uint32_t *num)
     std::cout << *num << std::endl;
 }
 
+void ocall_print_mpz(mpz_t *num)
+{
+    gmp_printf("%Zd\n", *num);
+}
+
 vector<uint8_t> readBinaryContent(const string &filePath)
 {
     ifstream file(filePath, ios::binary);

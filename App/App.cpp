@@ -66,6 +66,11 @@ void ocall_print_num(uint32_t *num)
     std::cout << *num << std::endl;
 }
 
+void ocall_print_mpz(mpz_t *num)
+{
+    gmp_printf("In enclave: %Zd\n", *num);
+}
+
 static size_t get_file_size(const char *filename)
 {
     std::ifstream ifs(filename, std::ios::in | std::ios::binary);
@@ -953,7 +958,7 @@ static bool verify_signature(const char* input_data_path, const char* key_factor
     return true;
 }
 
-void forge_calculate(mpz_t s, mpz_t q, mpz_t t, mpz_t r, mpz_t t_new, mpz_t* r_new)
+void forge_calculate(mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new)
 {
     sgx_enclave_id_t eid_seal = 0;
     // Load the enclave for sealing
@@ -964,24 +969,15 @@ void forge_calculate(mpz_t s, mpz_t q, mpz_t t, mpz_t r, mpz_t t_new, mpz_t* r_n
         return;
     }
 
-    uint8_t* s_mpz = (uint8_t*)malloc(32);
-    uint8_t* q_mpz = (uint8_t*)malloc(32);
-    uint8_t* t_mpz = (uint8_t*)malloc(32);
-    uint8_t* r_mpz = (uint8_t*)malloc(32);
-    uint8_t* t_new_mpz = (uint8_t*)malloc(32);
-    uint8_t* r_new_mpz = (uint8_t*)malloc(32);
-
-    size_t written = 0;
-
-    mpz_export(s_mpz, &written, 1, 1, 0, 0, s);
-    mpz_export(q_mpz, &written, 1, 1, 0, 0, q);
-    mpz_export(t_mpz, &written, 1, 1, 0, 0, t);
-    mpz_export(r_mpz, &written, 1, 1, 0, 0, r);
-    mpz_export(t_new_mpz, &written, 1, 1, 0, 0, t_new);
+    gmp_printf("s: %Zd\n", *s);
+    gmp_printf("q: %Zd\n", *q);
+    gmp_printf("t: %Zd\n", *t);
+    gmp_printf("r: %Zd\n", *r);
+    gmp_printf("t_new: %Zd\n", *t_new);
+    gmp_printf("r_new: %Zd\n", *r_new);
 
     // Forge
-    forge(eid_seal, s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz);
-    mpz_import(*r_new, 32, 1, 1, 0, 0, r_new_mpz);
+    forge(eid_seal, s, q, t, r, t_new, r_new);
     sgx_destroy_enclave(eid_seal);
     return;
 }
@@ -1127,15 +1123,16 @@ CLEANUP:
     return ret;
 }
 
-bool generate_encrypt_and_quote()
+bool generate_encrypt_and_quote(const char* output_key_factor_path)
 {
+    int res = 0;
     bool retval;
     quote3_error_t qe3_ret = SGX_QL_SUCCESS;
     uint32_t quote_size = 0;
     uint8_t* p_quote_buffer = NULL;
     sgx_quote3_t *p_quote = NULL;
-    sgx_target_info_t qe_target_info = { 0 };
     sgx_report_t app_report = { 0 };
+    sgx_target_info_t qe_target_info = { 0 };
     FILE *fptr = NULL;
 
     sgx_enclave_id_t eid_seal = 0;
@@ -1154,73 +1151,97 @@ bool generate_encrypt_and_quote()
     unsigned char* iqmp = (unsigned char*)malloc(192);
     size_t encrypted_p_size, encrypted_q_size, encrypted_dmp1_size, encrypted_dmq1_size, encrypted_iqmp_size;
 
-    // Step 1: Generate,encrypt and create enclave report
-    printf("Step1: Generate,encrypt and create enclave report\n");
-    if(true != generate_encrypt_and_report(eid_seal,&retval,p,encrypted_p_size,
+    //Step 1: Get target info
+    printf("Step1: Call sgx_qe_get_target_info:\n");
+    qe3_ret = sgx_qe_get_target_info(&qe_target_info);
+    if (SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error in sgx_qe_get_target_info. 0x%04x\n", qe3_ret);
+        res = -1;
+        goto CLEANUP;
+    }
+
+    // Step 2: Generate,encrypt and create enclave report
+    printf("Step2: Generate,encrypt and create enclave report\n");
+    if(SGX_SUCCESS != generate_encrypt_and_report(eid_seal,&retval,&qe_target_info,
+                                           p,encrypted_p_size,
                                            q,encrypted_q_size,
                                            dmp1,encrypted_dmp1_size,
                                            dmq1,encrypted_dmq1_size,
                                            iqmp,encrypted_iqmp_size,
                                            &app_report)) {
         printf("Info: Call to generate_encrypt_and_report() failed\n");
-        return -1;
+        return false;
     }
-    //TODO
 
-//     fptr = fopen("report.dat","wb");
-//     if( fptr ) {
-//         fwrite(&app_report, sizeof(app_report), 1, fptr);
-//         fclose(fptr);
-//     }
+    // Save the factors
+    if (write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_P).c_str(), p, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_Q).c_str(), q, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_DMP1).c_str(), dmp1, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_DMQ1).c_str(), dmq1, 192, 0) == false ||
+        write_buf_to_file((std::string(output_key_factor_path) + RSA_FACTOR_IQMP).c_str(), iqmp, 192, 0) == false ){
+        std::cout << "Failed to save the params " << "to \"" << "\"" << std::endl;
+        sgx_destroy_enclave(eid_seal);
+        return false;
+    }
 
-//     // Step 3: Get quote size
-//     printf("Step3: Call sgx_qe_get_quote_size\n");
-//     qe3_ret = sgx_qe_get_quote_size(&quote_size);
-//     if (SGX_QL_SUCCESS != qe3_ret) {
-//         printf("Error: sgx_qe_get_quote_size error 0x%04x\n", qe3_ret);
-//         return -1;
-//     }
+    fptr = fopen("report.dat","wb");
+    if( fptr ) {
+        fwrite(&app_report, sizeof(app_report), 1, fptr);
+        fclose(fptr);
+    }
 
-//     // Allocate buffer for quote
-//     p_quote_buffer = (uint8_t*)malloc(quote_size);
-//     if (NULL == p_quote_buffer) {
-//         printf("Info: Couldn't allocate quote_buffer\n");
-//         return -1;
-//     }
-//     memset(p_quote_buffer, 0, quote_size);
+    // Step 3: Get quote size
+    printf("Step3: Call sgx_qe_get_quote_size\n");
+    qe3_ret = sgx_qe_get_quote_size(&quote_size);
+    if (SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error: sgx_qe_get_quote_size error 0x%04x\n", qe3_ret);
+        return false;
+    }
 
-//     // Step 4: Get the quote
-//     printf("Step4: Call sgx_qe_get_quote\n");
-//     qe3_ret = sgx_qe_get_quote(&app_report,
-//         quote_size,
-//         p_quote_buffer);
-//     if (SGX_QL_SUCCESS != qe3_ret) {
-//         printf("Error: sgx_qe_get_quote got error 0x%04x\n", qe3_ret);
-//         ret = -1;
-//         goto CLEANUP;
-//     }
+    // Allocate buffer for quote
+    p_quote_buffer = (uint8_t*)malloc(quote_size);
+    if (NULL == p_quote_buffer) {
+        printf("Info: Couldn't allocate quote_buffer\n");
+        return false;
+    }
+    memset(p_quote_buffer, 0, quote_size);
 
-//     p_quote = (sgx_quote3_t*)p_quote_buffer;
+    // Step 4: Get the quote
+    printf("Step4: Call sgx_qe_get_quote\n");
+    qe3_ret = sgx_qe_get_quote(&app_report,
+        quote_size,
+        p_quote_buffer);
+    if (SGX_QL_SUCCESS != qe3_ret) {
+        printf("Error: sgx_qe_get_quote got error 0x%04x\n", qe3_ret);
+        res = -1;
+        goto CLEANUP;
+    }
 
-//     // Save quote to file
-//     fptr = fopen("quote.dat","wb");
-//     if(fptr) {
-//         fwrite(p_quote, quote_size, 1, fptr);
-//         fclose(fptr);
-//     }
+    p_quote = (sgx_quote3_t*)p_quote_buffer;
 
-//     // Clean up (in-proc mode only)
-//     printf("Info: Clean up the enclave load policy\n");
-//     qe3_ret = sgx_qe_cleanup_by_policy();
-//     if(SGX_QL_SUCCESS != qe3_ret) {
-//         printf("Error: cleanup enclave load policy with error 0x%04x\n", qe3_ret);
-//         ret = -1;
-//     }
-// CLEANUP:
-//     if (NULL != p_quote_buffer) {
-//         free(p_quote_buffer);
-//     }
-    return ret;
+    // Save quote to file
+    fptr = fopen("quote.dat","wb");
+    if(fptr) {
+        fwrite(p_quote, quote_size, 1, fptr);
+        fclose(fptr);
+    }
+
+CLEANUP:
+    free(p);
+    free(q);
+    free(dmp1);
+    free(dmq1);
+    free(iqmp);
+    if (NULL != p_quote_buffer) {
+        free(p_quote_buffer);
+    }
+    sgx_destroy_enclave(eid_seal);
+    if (res != 0) {
+        printf("Error: generate_encrypt_and_quote failed with error code %d\n", res);
+        return false;
+    }
+    printf("Info: generate_encrypt_and_quote succeeded.\n");
+    return true;
 }
 
 // vector<uint8_t> readBinaryContent(const string &filePath) {
@@ -1389,17 +1410,35 @@ int main(int argc, char* argv[])
     //         std::cerr << "Failed to verify signature." << std::endl;
     //         return -1;
     //     }
+    // } else if (command == "generate_encrypt_and_quote") {
+    //     const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
+    //     if(generate_encrypt_and_quote(key_factor_path)) {
+    //         std::cout << "Successfully generate encrypt and quote." << std::endl;
+    //         return 0;
+    //     } else {
+    //         std::cerr << "Failed to generate encrypt and quote." << std::endl;
+    //         return -1;
+    //     }
     // } else {
     //     std::cerr << "Unknown command: " << command << std::endl;
     //     return -1;
     // }
 
-    if (generate_quote() != 0)
-    {
-        std::cerr << "Failed to generate quote." << std::endl;
-        return -1;
-    }
-    std::cout << "Quote generated successfully." << std::endl;
+    // const char* key_factor_path = KEY_FACTOR_FOLDER;
+    // if (generate_encrypt_and_quote(key_factor_path)) {
+    //     std::cout << "Successfully generated encrypt and quote." << std::endl;
+    //     return 0;
+    // } else {
+    //     std::cerr << "Failed to generate encrypt and quote." << std::endl;
+    //     return -1;
+    // }
+
+    // if (generate_quote() != 0)
+    // {
+    //     std::cerr << "Failed to generate quote." << std::endl;
+    //     return -1;
+    // }
+    // std::cout << "Quote generated successfully." << std::endl;
 
     // if (argc != 2) {
     //     log("Usage: %s <quote_file>", argv[0]);
@@ -1416,6 +1455,18 @@ int main(int argc, char* argv[])
     //     std::cout << "Quote verification failed." << std::endl;
     //     return -1;
     // }
+
+    mpz_t s, q, t, r, t_new, r_new;
+    mpz_set_str(s, "22c0035b1ebdbccf1d14cc64b8c5cf2c8710ff31187957ba7641c520efda470", 16);
+    mpz_set_str(q, "e8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f", 16);
+    mpz_init_set_ui(t, 123U);
+    mpz_set_str(r, "d61b24ae313dc674406e40db56dacae3499dfe0e87b937dde05d0de58dc895a", 16);
+    mpz_init_set_ui(t_new, 456U);
+    mpz_init(r_new);
+
+    forge_calculate(&s, &q, &t, &r, &t_new, &r_new);
+
+    gmp_printf("r_new: %Zd\n", r_new);
 
     return 0;
 }
