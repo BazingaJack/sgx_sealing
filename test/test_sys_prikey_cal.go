@@ -14,7 +14,7 @@ var (
 	ErrorLogger *log.Logger
 )
 
-func test_forge(num int) error {
+func test_sys_prikey_cal(num int) error {
 	// 开始计时
 	startTime := time.Now()
 	InfoLogger.Printf("Start %d times test", num)
@@ -109,7 +109,7 @@ func main() {
 	// res := new(big.Int)
 
 	// r_new := forge(s, t, r, t_new, q)
-	if err := test_forge(100); err != nil {
+	if err := test_sys_prikey_cal(100); err != nil {
 		ErrorLogger.Printf("Failed to calculate forge: %v", err)
 	} else {
 		InfoLogger.Printf("Calculate forge successfully!")

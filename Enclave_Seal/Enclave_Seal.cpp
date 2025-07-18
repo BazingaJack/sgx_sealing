@@ -59,13 +59,13 @@ sgx_status_t generate_aes_key_and_seal(uint8_t* sealed_key, uint32_t sealed_key_
     return ret;
 }
 
-sgx_status_t generate_rsa_key_and_seal(unsigned char* p_n,
-                                       unsigned char* p_d,
-                                       unsigned char* p_p,
-                                       unsigned char* p_q,
-                                       unsigned char* p_dmp1,
-                                       unsigned char* p_dmq1,
-                                       unsigned char* p_iqmp)
+sgx_status_t generate_rsa_key(unsigned char* p_n,
+                              unsigned char* p_d,
+                              unsigned char* p_p,
+                              unsigned char* p_q,
+                              unsigned char* p_dmp1,
+                              unsigned char* p_dmq1,
+                              unsigned char* p_iqmp)
 {
     sgx_status_t ret = SGX_SUCCESS;
     unsigned char n[RSA3072_KEY_SIZE] = {0};
@@ -296,35 +296,59 @@ sgx_status_t verify_signature_with_rsa(unsigned char* p_n,
     return ret;
 }
 
-void forge(mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new)
+void forge(char* s, char* q, char* t, char* r, char* t_new, char* r_new)
 {
-    ocall_print_mpz(s);
-    ocall_print_mpz(q);
-    ocall_print_mpz(t);
-    ocall_print_mpz(r);
-    ocall_print_mpz(t_new);
-    ocall_print_mpz(r_new);
+    mpz_t s_mpz, q_mpz, t_mpz, r_mpz, t_new_mpz, r_new_mpz;
+    mpz_init_set_str(s_mpz, s, 16);
+    mpz_init_set_str(q_mpz, q, 16);
+    mpz_init_set_str(t_mpz, t, 16);
+    mpz_init_set_str(r_mpz, r, 16);
+    mpz_init_set_str(t_new_mpz, t_new, 16);
+    mpz_init(r_new_mpz);
 
     mpz_t temp1, temp2, temp3, temp4, temp5, temp6;
-    mpz_inits(temp1, temp2, temp3, temp4, temp5, temp6, NULL);
-    mpz_mul(temp1, *s, *r);
-    ocall_print_mpz(&temp1);
-    mpz_add(temp2, temp1, *t);
-    ocall_print_mpz(&temp2);
-    mpz_sub(temp3, temp2, *t_new);
-    ocall_print_mpz(&temp3);
-    if (!mpz_invert(temp4, *s, *q)) {
+    mpz_inits(temp1, temp2, temp3, temp4, temp5, temp6,NULL);
+    mpz_mul(temp1, s_mpz, r_mpz);
+    mpz_add(temp2, temp1, t_mpz);
+    mpz_sub(temp3, temp2, t_new_mpz);
+    if (!mpz_invert(temp4, s_mpz, q_mpz)) {
         ocall_print_string("Error: s is not invertible mod q!\n");
         goto cleanup;
     }
+    
     mpz_mul(temp5, temp3, temp4);
-    mpz_mod(temp6, temp5, *q);
 
-    ocall_print_mpz(&temp6);
+    mpz_mod(temp6, temp5, q_mpz);
+
+    mpz_get_str(r_new, 10, temp6);
 
 cleanup:
     mpz_clears(temp1, temp2, temp3, temp4, temp5, temp6, NULL);
 
+    return;
+}
+
+void sys_prikey_cal(char* s, char* q, char* s_sys)
+{
+    mpz_t s_mpz, q_mpz, s_sys_mpz, temp;
+    mpz_init(temp);
+    mpz_init_set_str(s_mpz, s, 16);
+    mpz_init_set_str(q_mpz, q, 16);
+    mpz_init(s_sys_mpz);
+
+    for(int i = 0; i < 11; i++) {
+        mpz_t temp1, temp2;
+        mpz_init(temp1);
+        mpz_init(temp2);
+        mpz_add(temp1, temp, s_mpz);
+        mpz_mod(temp2, temp1, q_mpz);
+        mpz_set(temp, temp2);
+        mpz_clear(temp1);
+        mpz_clear(temp2);
+    }
+
+    mpz_get_str(s_sys, 16, temp);
+    mpz_clears(s_mpz, q_mpz, s_sys_mpz, temp, NULL);
     return;
 }
 

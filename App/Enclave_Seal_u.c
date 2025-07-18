@@ -23,7 +23,7 @@ typedef struct ms_generate_aes_key_and_seal_t {
 	uint32_t ms_key_size;
 } ms_generate_aes_key_and_seal_t;
 
-typedef struct ms_generate_rsa_key_and_seal_t {
+typedef struct ms_generate_rsa_key_t {
 	sgx_status_t ms_retval;
 	unsigned char* ms_p_n;
 	unsigned char* ms_p_d;
@@ -32,7 +32,7 @@ typedef struct ms_generate_rsa_key_and_seal_t {
 	unsigned char* ms_p_dmp1;
 	unsigned char* ms_p_dmq1;
 	unsigned char* ms_p_iqmp;
-} ms_generate_rsa_key_and_seal_t;
+} ms_generate_rsa_key_t;
 
 typedef struct ms_encrypt_by_rsa_pubkey_t {
 	sgx_status_t ms_retval;
@@ -92,12 +92,17 @@ typedef struct ms_verify_signature_with_rsa_t {
 } ms_verify_signature_with_rsa_t;
 
 typedef struct ms_forge_t {
-	mpz_t* ms_s;
-	mpz_t* ms_q;
-	mpz_t* ms_t;
-	mpz_t* ms_r;
-	mpz_t* ms_t_new;
-	mpz_t* ms_r_new;
+	char* ms_s;
+	size_t ms_s_len;
+	char* ms_q;
+	size_t ms_q_len;
+	char* ms_t;
+	size_t ms_t_len;
+	char* ms_r;
+	size_t ms_r_len;
+	char* ms_t_new;
+	size_t ms_t_new_len;
+	char* ms_r_new;
 } ms_forge_t;
 
 typedef struct ms_enclave_create_report_t {
@@ -126,6 +131,14 @@ typedef struct ms_generate_encrypt_and_report_t {
 	size_t ms_encrypted_iqmp_len;
 	sgx_report_t* ms_p_report;
 } ms_generate_encrypt_and_report_t;
+
+typedef struct ms_sys_prikey_cal_t {
+	char* ms_s;
+	size_t ms_s_len;
+	char* ms_q;
+	size_t ms_q_len;
+	char* ms_s_sys;
+} ms_sys_prikey_cal_t;
 
 typedef struct ms_sgx_tvl_verify_qve_report_and_identity_t {
 	quote3_error_t ms_retval;
@@ -304,10 +317,10 @@ sgx_status_t generate_aes_key_and_seal(sgx_enclave_id_t eid, sgx_status_t* retva
 	return status;
 }
 
-sgx_status_t generate_rsa_key_and_seal(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, unsigned char* p_d, unsigned char* p_p, unsigned char* p_q, unsigned char* p_dmp1, unsigned char* p_dmq1, unsigned char* p_iqmp)
+sgx_status_t generate_rsa_key(sgx_enclave_id_t eid, sgx_status_t* retval, unsigned char* p_n, unsigned char* p_d, unsigned char* p_p, unsigned char* p_q, unsigned char* p_dmp1, unsigned char* p_dmq1, unsigned char* p_iqmp)
 {
 	sgx_status_t status;
-	ms_generate_rsa_key_and_seal_t ms;
+	ms_generate_rsa_key_t ms;
 	ms.ms_p_n = p_n;
 	ms.ms_p_d = p_d;
 	ms.ms_p_p = p_p;
@@ -407,15 +420,20 @@ sgx_status_t verify_signature_with_rsa(sgx_enclave_id_t eid, sgx_status_t* retva
 	return status;
 }
 
-sgx_status_t forge(sgx_enclave_id_t eid, mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new)
+sgx_status_t forge(sgx_enclave_id_t eid, char* s, char* q, char* t, char* r, char* t_new, char* r_new)
 {
 	sgx_status_t status;
 	ms_forge_t ms;
 	ms.ms_s = s;
+	ms.ms_s_len = s ? strlen(s) + 1 : 0;
 	ms.ms_q = q;
+	ms.ms_q_len = q ? strlen(q) + 1 : 0;
 	ms.ms_t = t;
+	ms.ms_t_len = t ? strlen(t) + 1 : 0;
 	ms.ms_r = r;
+	ms.ms_r_len = r ? strlen(r) + 1 : 0;
 	ms.ms_t_new = t_new;
+	ms.ms_t_new_len = t_new ? strlen(t_new) + 1 : 0;
 	ms.ms_r_new = r_new;
 	status = sgx_ecall(eid, 10, &ocall_table_Enclave_Seal, &ms);
 	return status;
@@ -463,6 +481,19 @@ sgx_status_t generate_encrypt_and_report(sgx_enclave_id_t eid, bool* retval, sgx
 	return status;
 }
 
+sgx_status_t sys_prikey_cal(sgx_enclave_id_t eid, char* s, char* q, char* s_sys)
+{
+	sgx_status_t status;
+	ms_sys_prikey_cal_t ms;
+	ms.ms_s = s;
+	ms.ms_s_len = s ? strlen(s) + 1 : 0;
+	ms.ms_q = q;
+	ms.ms_q_len = q ? strlen(q) + 1 : 0;
+	ms.ms_s_sys = s_sys;
+	status = sgx_ecall(eid, 14, &ocall_table_Enclave_Seal, &ms);
+	return status;
+}
+
 sgx_status_t sgx_tvl_verify_qve_report_and_identity(sgx_enclave_id_t eid, quote3_error_t* retval, const uint8_t* p_quote, uint32_t quote_size, const sgx_ql_qe_report_info_t* p_qve_report_info, time_t expiration_check_date, uint32_t collateral_expiration_status, sgx_ql_qv_result_t quote_verification_result, const uint8_t* p_supplemental_data, uint32_t supplemental_data_size, sgx_isv_svn_t qve_isvsvn_threshold)
 {
 	sgx_status_t status;
@@ -476,7 +507,7 @@ sgx_status_t sgx_tvl_verify_qve_report_and_identity(sgx_enclave_id_t eid, quote3
 	ms.ms_p_supplemental_data = p_supplemental_data;
 	ms.ms_supplemental_data_size = supplemental_data_size;
 	ms.ms_qve_isvsvn_threshold = qve_isvsvn_threshold;
-	status = sgx_ecall(eid, 14, &ocall_table_Enclave_Seal, &ms);
+	status = sgx_ecall(eid, 15, &ocall_table_Enclave_Seal, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
@@ -488,7 +519,7 @@ sgx_status_t tee_verify_qae_report_and_identity(sgx_enclave_id_t eid, quote3_err
 	ms.ms_input = input;
 	ms.ms_qae_report_info = qae_report_info;
 	ms.ms_qae_isvsvn_threshold = qae_isvsvn_threshold;
-	status = sgx_ecall(eid, 15, &ocall_table_Enclave_Seal, &ms);
+	status = sgx_ecall(eid, 16, &ocall_table_Enclave_Seal, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }

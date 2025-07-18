@@ -13,7 +13,7 @@ enclave {
                                       [in, size=encrypt_data_len] uint8_t* p_encrypt_data, size_t encrypt_data_len,
                                       [out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
         public sgx_status_t generate_aes_key_and_seal([out, size=key_size] uint8_t* p_aes_key, uint32_t key_size);
-        public sgx_status_t generate_rsa_key_and_seal([out, size=384] unsigned char* p_n,
+        public sgx_status_t generate_rsa_key([out, size=384] unsigned char* p_n,
                                                       [out, size=384] unsigned char* p_d,
                                                       [out, size=192] unsigned char* p_p,
                                                       [out, size=192] unsigned char* p_q,
@@ -44,8 +44,8 @@ enclave {
                                                       [in, size=data_len] uint8_t* p_data, size_t data_len,
                                                       [in, size=384] uint8_t* p_sig,
                                                       [out,size=1] uint8_t* is_valid);
-        public void forge([in] mpz_t* s,[in] mpz_t* q,[in] mpz_t* t,
-                          [in] mpz_t* r,[in] mpz_t* t_new,[out] mpz_t* r_new);
+        public void forge([in,string] char* s,[in,string] char* q,[in,string] char* t,
+                          [in,string] char* r,[in,string] char* t_new,[out,size=256] char* r_new);
         public uint32_t enclave_create_report([in]const sgx_target_info_t* p_qe3_target,
                                               [out]sgx_report_t* p_report);
         public sgx_status_t ecall_get_target_info([out] sgx_target_info_t* target_info);
@@ -56,6 +56,7 @@ enclave {
                                                 [out,size=encrypted_dmq1_len] unsigned char* encrypted_dmq1, size_t encrypted_dmq1_len,
                                                 [out,size=encrypted_iqmp_len] unsigned char* encrypted_iqmp, size_t encrypted_iqmp_len,
                                                 [out]sgx_report_t* p_report);
+        public void sys_prikey_cal([in,string] char* s, [in,string] char* q, [out,size=256] char* s_sys);
     };
 
     untrusted {

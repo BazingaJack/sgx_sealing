@@ -370,7 +370,7 @@ static bool generate_key_and_seal()
     return true;
 }
 
-static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
+static bool generate_rsa_keypair(const char* output_key_factor_path)
 {
     sgx_enclave_id_t eid_seal = 0;
     // Load the enclave for sealing
@@ -391,7 +391,7 @@ static bool generate_rsa_keypair_and_seal(const char* output_key_factor_path)
 
     sgx_status_t retval;
 
-    ret = generate_rsa_key_and_seal(eid_seal, &retval, n, d, p, q, dmp1, dmq1, iqmp);
+    ret = generate_rsa_key(eid_seal, &retval, n, d, p, q, dmp1, dmq1, iqmp);
     if (ret != SGX_SUCCESS)
     {
         std::cout << "Error: ret is not success." << std::endl;
@@ -958,7 +958,7 @@ static bool verify_signature(const char* input_data_path, const char* key_factor
     return true;
 }
 
-void forge_calculate(mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t* r_new)
+void forge_calculate(char* s, char* q, char* t, char* r, char* t_new, char* r_new)
 {
     sgx_enclave_id_t eid_seal = 0;
     // Load the enclave for sealing
@@ -969,15 +969,26 @@ void forge_calculate(mpz_t* s, mpz_t* q, mpz_t* t, mpz_t* r, mpz_t* t_new, mpz_t
         return;
     }
 
-    gmp_printf("s: %Zd\n", *s);
-    gmp_printf("q: %Zd\n", *q);
-    gmp_printf("t: %Zd\n", *t);
-    gmp_printf("r: %Zd\n", *r);
-    gmp_printf("t_new: %Zd\n", *t_new);
-    gmp_printf("r_new: %Zd\n", *r_new);
-
     // Forge
     forge(eid_seal, s, q, t, r, t_new, r_new);
+    sgx_destroy_enclave(eid_seal);
+    return;
+}
+
+void sys_prikey_calculate(char* s, char* q, char* s_sys)
+{
+    sgx_enclave_id_t eid_seal = 0;
+    // Load the enclave for sealing
+    sgx_status_t ret = initialize_enclave(ENCLAVE_NAME_SEAL, &eid_seal);
+    if (ret != SGX_SUCCESS)
+    {
+        ret_error_support(ret);
+        return;
+    }
+
+    // sys_prikey_cal
+    sys_prikey_cal(eid_seal, s, q, s_sys);
+    std::cout << "sys_prikey: " << s_sys << std::endl;
     sgx_destroy_enclave(eid_seal);
     return;
 }
@@ -1244,105 +1255,6 @@ CLEANUP:
     return true;
 }
 
-// vector<uint8_t> readBinaryContent(const string &filePath) {
-//     ifstream file(filePath, ios::binary);
-//     if (!file.is_open()) {
-//         log("Error: Unable to open quote file %s", filePath.c_str());
-//         return {};
-//     }
-//     file.seekg(0, ios_base::end);
-//     streampos fileSize = file.tellg();
-//     file.seekg(0, ios_base::beg);
-//     vector<uint8_t> retVal(fileSize);
-//     file.read(reinterpret_cast<char *>(retVal.data()), fileSize);
-//     file.close();
-//     return retVal;
-// }
-
-// int verify_quote(vector<uint8_t> quote) {
-//     int ret = 0;
-//     time_t current_time = 0;
-//     quote3_error_t dcap_ret = TEE_ERROR_UNEXPECTED;
-//     uint32_t collateral_expiration_status = 1;
-//     sgx_ql_qv_result_t quote_verification_result = TEE_QV_RESULT_UNSPECIFIED;
-    
-//     tee_supp_data_descriptor_t supp_data;
-//     memset(&supp_data, 0, sizeof(tee_supp_data_descriptor_t));
-//     // Get supplemental data version and size
-//     uint32_t version;
-//     dcap_ret = tee_get_supplemental_data_version_and_size(
-//         quote.data(),
-//         (uint32_t)quote.size(),
-//         &version,
-//         &supp_data.data_size);
-//     if (dcap_ret == TEE_SUCCESS && supp_data.data_size == sizeof(sgx_ql_qv_supplemental_t)) {
-//         supp_data.p_data = (uint8_t *)malloc(supp_data.data_size);
-//         if (supp_data.p_data != NULL) {
-//             memset(supp_data.p_data, 0, supp_data.data_size);
-//         } else {
-//             log("Error: Cannot allocate memory for supplemental data.");
-//             supp_data.data_size = 0;
-//         }
-//     } else {
-//         if (dcap_ret != TEE_SUCCESS)
-//             log("Error: tee_get_quote_supplemental_data_size failed: 0x%04x", dcap_ret);
-//         supp_data.data_size = 0;
-//     }
-//     // Set current time (use trusted time in production)
-//     current_time = time(NULL);
-//     // Perform quote verification (in-proc mode)
-//     dcap_ret = tee_verify_quote(
-//         quote.data(), 
-//         (uint32_t)quote.size(),
-//         NULL,
-//         current_time,
-//         &collateral_expiration_status,
-//         &quote_verification_result,
-//         NULL,  // NULL for in-proc mode
-//         &supp_data);
-//     if (dcap_ret != TEE_SUCCESS) {
-//         log("Error: App: tee_verify_quote failed: 0x%04x", dcap_ret);
-//         goto cleanup;
-//     }
-//     // Check verification result
-//     switch (quote_verification_result) {
-//         case TEE_QV_RESULT_OK:
-//             if (collateral_expiration_status == 0) {
-//                 log("Info: Verification completed successfully.");
-//                 ret = 0;
-//             } else {
-//                 log("Warning: Verification completed, but collateral is out of date.");
-//                 ret = 1;
-//             }
-//             break;
-//         case TEE_QV_RESULT_CONFIG_NEEDED:
-//         case TEE_QV_RESULT_OUT_OF_DATE:
-//             log("Warning: Verification completed with Non-terminal result: %x", quote_verification_result);
-//             ret = 1;
-//             break;
-//         case TEE_QV_RESULT_INVALID_SIGNATURE:
-//         case TEE_QV_RESULT_REVOKED:
-//         default:
-//             log("Error: Verification completed with Terminal result: %x", quote_verification_result);
-//             ret = -1;
-//             break;
-//     }
-//     // Check supplemental data if available
-//     if (dcap_ret == TEE_SUCCESS && supp_data.p_data != NULL && supp_data.data_size > 0) {
-//         sgx_ql_qv_supplemental_t *p = (sgx_ql_qv_supplemental_t *)supp_data.p_data;
-//         log("Info: Supplemental data Major Version: %d", p->major_version);
-//         log("Info: Supplemental data Minor Version: %d", p->minor_version);
-//         if (p->version > 3 && strlen(p->sa_list) > 0) {
-//             log("Info: Advisory ID: %s", p->sa_list);
-//         }
-//     }
-// cleanup:
-//     if (supp_data.p_data != NULL) {
-//         free(supp_data.p_data);
-//     }
-//     return ret;
-// }
-
 int main(int argc, char* argv[])
 {
     // if (argc < 2)
@@ -1361,7 +1273,7 @@ int main(int argc, char* argv[])
 
     // if(command == "generate_rsa_key") {
     //     const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
-    //     if(generate_rsa_keypair_and_seal(key_factor_path)) {
+    //     if(generate_rsa_keypair(key_factor_path)) {
     //         std::cout << "Successfully generate rsa key." << std::endl;
     //         return 0;
     //     } else {
@@ -1456,17 +1368,18 @@ int main(int argc, char* argv[])
     //     return -1;
     // }
 
-    mpz_t s, q, t, r, t_new, r_new;
-    mpz_set_str(s, "22c0035b1ebdbccf1d14cc64b8c5cf2c8710ff31187957ba7641c520efda470", 16);
-    mpz_set_str(q, "e8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f", 16);
-    mpz_init_set_ui(t, 123U);
-    mpz_set_str(r, "d61b24ae313dc674406e40db56dacae3499dfe0e87b937dde05d0de58dc895a", 16);
-    mpz_init_set_ui(t_new, 456U);
-    mpz_init(r_new);
+    char* s = "22c0035b1ebdbccf1d14cc64b8c5cf2c8710ff31187957ba7641c520efda470";
+    char* q = "e8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f";
+    // char* t = "7b";//123
+    // char* r = "d61b24ae313dc674406e40db56dacae3499dfe0e87b937dde05d0de58dc895a";
+    // char* t_new = "1c8";//456
+    // char* r_new = (char*)malloc(256);
+    char* s_sys = (char*)malloc(256);
+    sys_prikey_calculate(s, q, s_sys);
 
-    forge_calculate(&s, &q, &t, &r, &t_new, &r_new);
+    // forge_calculate(s, q, t, r, t_new, r_new);
 
-    gmp_printf("r_new: %Zd\n", r_new);
+    // std::cout << "Forge result: r_new = " << r_new << std::endl;
 
     return 0;
 }
