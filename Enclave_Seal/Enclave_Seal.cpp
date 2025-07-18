@@ -306,24 +306,24 @@ void forge(char* s, char* q, char* t, char* r, char* t_new, char* r_new)
     mpz_init_set_str(t_new_mpz, t_new, 16);
     mpz_init(r_new_mpz);
 
-    mpz_t temp1, temp2, temp3, temp4, temp5, temp6;
-    mpz_inits(temp1, temp2, temp3, temp4, temp5, temp6,NULL);
+    mpz_t temp1, temp2;
+    mpz_inits(temp1, temp2,NULL);
     mpz_mul(temp1, s_mpz, r_mpz);
-    mpz_add(temp2, temp1, t_mpz);
-    mpz_sub(temp3, temp2, t_new_mpz);
-    if (!mpz_invert(temp4, s_mpz, q_mpz)) {
+    mpz_add(temp1, temp1, t_mpz);
+    mpz_sub(temp1, temp1, t_new_mpz);
+    if (!mpz_invert(temp2, s_mpz, q_mpz)) {
         ocall_print_string("Error: s is not invertible mod q!\n");
         goto cleanup;
     }
     
-    mpz_mul(temp5, temp3, temp4);
+    mpz_mul(temp1, temp1, temp2);
 
-    mpz_mod(temp6, temp5, q_mpz);
+    mpz_mod(temp1, temp1, q_mpz);
 
-    mpz_get_str(r_new, 10, temp6);
+    mpz_get_str(r_new, 10, temp1);
 
 cleanup:
-    mpz_clears(temp1, temp2, temp3, temp4, temp5, temp6, NULL);
+    mpz_clears(temp1, temp2, NULL);
 
     return;
 }

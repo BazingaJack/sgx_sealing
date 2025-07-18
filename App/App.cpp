@@ -975,6 +975,33 @@ void forge_calculate(char* s, char* q, char* t, char* r, char* t_new, char* r_ne
     return;
 }
 
+void ree_forge_test()
+{
+    mpz_t s, q, t, r, t_new, r_new;
+
+    mpz_init_set_str(s, "22c0035b1ebdbccf1d14cc64b8c5cf2c8710ff31187957ba7641c520efda470", 16);
+    mpz_init_set_str(q, "e8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f", 16);
+    mpz_init_set_str(t, "123", 10);
+    mpz_init_set_str(r, "d61b24ae313dc674406e40db56dacae3499dfe0e87b937dde05d0de58dc895a", 16);
+    mpz_init_set_str(t_new, "456", 10);
+    mpz_init(r_new);
+
+    mpz_t temp1, temp2;
+    mpz_inits(temp1, temp2, NULL);
+
+    mpz_mul(temp1, s, r);
+    mpz_add(temp1, temp1, t);
+    mpz_sub(temp1, temp1, t_new);
+    mpz_invert(temp2, s, q);
+
+    mpz_mul(temp1, temp1, temp2);
+
+    mpz_mod(temp1, temp1, q);
+
+    gmp_printf("Calculated r_new: %Zd\n", temp1);
+
+}
+
 void sys_prikey_calculate(char* s, char* q, char* s_sys)
 {
     sgx_enclave_id_t eid_seal = 0;
@@ -1257,129 +1284,107 @@ CLEANUP:
 
 int main(int argc, char* argv[])
 {
-    // if (argc < 2)
-    // {
-    //     std::cout << "Usage: " << argv[0] << " <command> [file paths]" << std::endl;
-    //     std::cout << "Commands:" << std::endl;
-    //     std::cout << "  generate_key_and_seal [output_key_factor_path]" << std::endl;
-    //     std::cout << "  encrypt [input_data_path] [key_factor_path] [output_encrypted_path]" << std::endl;
-    //     std::cout << "  decrypt [input_encrypted_path] [key_factor_path] [output_decrypted_path]" << std::endl;
-    //     std::cout << "  sign_data [input_data_path] [key_factor_path]" << std::endl;
-    //     std::cout << "  verify_signature [input_data_path] [key_factor_path]" << std::endl;
-    //     return -1;
-    // }
 
-    // std::string command = argv[1];
+    if (argc < 2)
+    {
+        std::cout << "Usage: " << argv[0] << " <command> [file paths]" << std::endl;
+        std::cout << "Commands:" << std::endl;
+        std::cout << "  generate_key_and_seal [output_key_factor_path]" << std::endl;
+        std::cout << "  encrypt [input_data_path] [key_factor_path] [output_encrypted_path]" << std::endl;
+        std::cout << "  decrypt [input_encrypted_path] [key_factor_path] [output_decrypted_path]" << std::endl;
+        std::cout << "  sign_data [input_data_path] [key_factor_path]" << std::endl;
+        std::cout << "  verify_signature [input_data_path] [key_factor_path]" << std::endl;
+        std::cout << "  generate_encrypt_and_quote [output_key_factor_path]" << std::endl;
+        std::cout << "  generate_quote" << std::endl;
+        std::cout << "  forge [s] [q] [t] [r] [t_new]" << std::endl;
+        return -1;
+    }
 
-    // if(command == "generate_rsa_key") {
-    //     const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
-    //     if(generate_rsa_keypair(key_factor_path)) {
-    //         std::cout << "Successfully generate rsa key." << std::endl;
-    //         return 0;
-    //     } else {
-    //         std::cerr << "Failed to generate rsa keypair." << std::endl;
-    //         return -1;
-    //     }
-    // } else if (command == "encrypt") {
-    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-    //     const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
-    //     if(encrypt_by_rsa(input_path, key_path, output_path)) {
-    //         std::cout << "Successfully encrypt by rsa." << std::endl;
-    //         return 0;
-    //     } else {
-    //         std::cerr << "Failed to encrypt by rsa." << std::endl;
-    //         return -1;
-    //     }
-    // } else if (command == "decrypt") {
-    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-    //     const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
-    //     if(decrypt_by_rsa(input_path, key_path, output_path)) {
-    //         std::cout << "Successfully decrypt by rsa." << std::endl;
-    //         return 0;
-    //     } else {
-    //         std::cerr << "Failed to decrypt by rsa." << std::endl;
-    //         return -1;
-    //     }
-    // } else if (command == "sign_data") {
-    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-    //     if(sign_data(input_path, key_path)) {
-    //         std::cout << "Successfully signed data." << std::endl;
-    //         return 0;
-    //     } else {
-    //         std::cerr << "Failed to sign data." << std::endl;
-    //         return -1;
-    //     }
-    // } else if (command == "verify_signature") {
-    //     const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
-    //     const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
-    //     if(verify_signature(input_path, key_path)) {
-    //         std::cout << "Successfully verified signature." << std::endl;
-    //         return 0;
-    //     } else {
-    //         std::cerr << "Failed to verify signature." << std::endl;
-    //         return -1;
-    //     }
-    // } else if (command == "generate_encrypt_and_quote") {
-    //     const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
-    //     if(generate_encrypt_and_quote(key_factor_path)) {
-    //         std::cout << "Successfully generate encrypt and quote." << std::endl;
-    //         return 0;
-    //     } else {
-    //         std::cerr << "Failed to generate encrypt and quote." << std::endl;
-    //         return -1;
-    //     }
-    // } else {
-    //     std::cerr << "Unknown command: " << command << std::endl;
-    //     return -1;
-    // }
+    std::string command = argv[1];
 
-    // const char* key_factor_path = KEY_FACTOR_FOLDER;
-    // if (generate_encrypt_and_quote(key_factor_path)) {
-    //     std::cout << "Successfully generated encrypt and quote." << std::endl;
-    //     return 0;
-    // } else {
-    //     std::cerr << "Failed to generate encrypt and quote." << std::endl;
-    //     return -1;
-    // }
-
-    // if (generate_quote() != 0)
-    // {
-    //     std::cerr << "Failed to generate quote." << std::endl;
-    //     return -1;
-    // }
-    // std::cout << "Quote generated successfully." << std::endl;
-
-    // if (argc != 2) {
-    //     log("Usage: %s <quote_file>", argv[0]);
-    //     std::cout << "Please provide the path to the quote file." << std::endl;
-    //     return -1;
-    // }
-    // vector<uint8_t> quote = readBinaryContent(argv[1]);
-    // if (quote.empty()) {
-    //     std::cout << "Failed to read the quote file or the file is empty." << std::endl;
-    //     return -1;
-    // }
-
-    // if (verify_quote(quote) != 0) {
-    //     std::cout << "Quote verification failed." << std::endl;
-    //     return -1;
-    // }
-
-    char* s = "22c0035b1ebdbccf1d14cc64b8c5cf2c8710ff31187957ba7641c520efda470";
-    char* q = "e8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f";
-    // char* t = "7b";//123
-    // char* r = "d61b24ae313dc674406e40db56dacae3499dfe0e87b937dde05d0de58dc895a";
-    // char* t_new = "1c8";//456
-    // char* r_new = (char*)malloc(256);
-    char* s_sys = (char*)malloc(256);
-    sys_prikey_calculate(s, q, s_sys);
-
-    // forge_calculate(s, q, t, r, t_new, r_new);
-
-    // std::cout << "Forge result: r_new = " << r_new << std::endl;
+    if(command == "generate_rsa_key") {
+        const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
+        if(generate_rsa_keypair(key_factor_path)) {
+            std::cout << "Successfully generate rsa key." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to generate rsa keypair." << std::endl;
+            return -1;
+        }
+    } else if (command == "encrypt") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
+        if(encrypt_by_rsa(input_path, key_path, output_path)) {
+            std::cout << "Successfully encrypt by rsa." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to encrypt by rsa." << std::endl;
+            return -1;
+        }
+    } else if (command == "decrypt") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        const char* output_path = (argc > 4) ? argv[4] : DATA_FOLDER;
+        if(decrypt_by_rsa(input_path, key_path, output_path)) {
+            std::cout << "Successfully decrypt by rsa." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to decrypt by rsa." << std::endl;
+            return -1;
+        }
+    } else if (command == "sign_data") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        if(sign_data(input_path, key_path)) {
+            std::cout << "Successfully signed data." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to sign data." << std::endl;
+            return -1;
+        }
+    } else if (command == "verify_signature") {
+        const char* input_path = (argc > 2) ? argv[2] : DATA_FOLDER;
+        const char* key_path = (argc > 3) ? argv[3] : KEY_FACTOR_FOLDER;
+        if(verify_signature(input_path, key_path)) {
+            std::cout << "Successfully verified signature." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to verify signature." << std::endl;
+            return -1;
+        }
+    } else if (command == "generate_encrypt_and_quote") {
+        const char* key_factor_path = (argc > 2) ? argv[2] : KEY_FACTOR_FOLDER;
+        if(generate_encrypt_and_quote(key_factor_path)) {
+            std::cout << "Successfully generate encrypt and quote." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to generate encrypt and quote." << std::endl;
+            return -1;
+        }
+    } else if (command == "generate_quote") {
+        if(generate_quote() == 0) {
+            std::cout << "Quote generated successfully." << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Failed to generate quote." << std::endl;
+            return -1;
+        }
+    } else if (command == "forge") {
+        const char* s = (argc > 2) ? argv[2] : "22c0035b1ebdbccf1d14cc64b8c5cf2c8710ff31187957ba7641c520efda470";
+        const char* q = (argc > 3) ? argv[3] : "e8e14e68c1a6b6beff169bd76d2f79cc7051a8130c5f1fa019f229855d5184f";
+        const char* t = (argc > 4) ? argv[4] : "7b";//123
+        const char* r = (argc > 5) ? argv[5] : "d61b24ae313dc674406e40db56dacae3499dfe0e87b937dde05d0de58dc895a";
+        const char* t_new = (argc > 6) ? argv[6] : "1c8";//456
+        char* r_new = (char*)malloc(256);
+        forge_calculate((char*)s, (char*)q, (char*)t, (char*)r, (char*)t_new, r_new);
+        std::cout << "Forge result: r_new = " << r_new << std::endl;
+        free(r_new);
+        return 0;
+    } else {
+        std::cerr << "Unknown command: " << command << std::endl;
+        return -1;
+    }
 
     return 0;
 }
